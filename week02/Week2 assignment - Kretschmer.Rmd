@@ -1,0 +1,77 @@
+---
+title: "assignment week2"
+author: "Miriam Kretschmer"
+date: "10 3 2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+suppressPackageStartupMessages({
+  library(AnnotationHub)
+  library(ensembldb)
+  library(GenomicRanges)
+  library(epiwraps)
+})
+```
+
+# Annotation data for Mus musculus GRCm38 version 102 and Drosophila melanogaster BDGP6
+```{r, cache=TRUE}
+ah <- AnnotationHub()
+```
+```{r, eval=FALSE}
+display(ah)
+```
+```{r, cache=TRUE}
+ensdb <- ah[["AH89211"]]
+dna_sm <- ah[["AH88477"]]
+dna_sm_dr <- ah[["AH99424"]]
+```
+
+# Questions
+## How many different ensembl gene IDs and gene symbols are there for protein-coding genes?
+
+```{r, cache=TRUE}
+txs <- transcripts(ensdb, columns=c("tx_id","tx_biotype","tx_name","gene_id","gene_name"))
+head(txs)
+txs_protein_coding <- txs[txs$tx_biotype == "protein_coding"]
+head(txs_protein_coding)
+length(txs_protein_coding$gene_id)
+length(unique(txs_protein_coding$gene_id))
+```
+
+There are 60320 gene IDs for protein-coding genes, 22233 of which are unique.
+
+```{r}
+length(txs_protein_coding$gene_name)
+length(unique(txs_protein_coding$gene_name))
+```
+
+There are 60320 gene symbols for protein coding genes, 21916 of which are unique.
+
+
+## Plot the distribution of the number of exons for protein-coding genes
+
+```{r}
+exsPerTx <- exonsBy(ensdb, column=c("tx_id","tx_biotype"), 
+                    filter=TxBiotypeFilter("protein_coding"))
+nbExonsPerPCtx <- lengths(exsPerTx)
+hist(nbExonsPerPCtx, main="Number of exons per transcript", 
+     xlab="Number of exons", ylab="Transcripts")
+```
+
+## Plot the distribution of the (spliced) length of protein-coding genes
+```{r}
+hist(sum(width(exsPerTx)), main="Spliced length of protein coding genes",
+     xlab="Length", ylab="Trancsripts")
+```
+
+## Comment how long the excercise took and how difficult it was
+It took me about 2 h to finish the exercise trying not to copy-paste the script from the lesson but to tackle the problems from scratch. Weirdly enough I could not reproduce the histogram using a from scratch approach. Copy-pasting from the lessons script resolved my issue. 
+Overall, this was nice to affirm the new learned from the lesson.
+
+
+# Session information
+```{r}
+sessionInfo()
+```
