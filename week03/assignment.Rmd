@@ -1,0 +1,99 @@
+---
+title: "Assignment Week3"
+author: "Miriam Kretschmer"
+date: "15 3 2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+suppressPackageStartupMessages({
+  library(AnnotationHub)
+  library(Rsubread)
+  library(rtracklayer)
+  library(Biostrings)
+  library(Rfastp)
+  library(ensembldb)
+  library(epiwraps)
+})
+ah <- AnnotationHub()
+```
+
+```{r, eval=FALSE}
+setwd("C:\\Users\\mkretschmer\\Documents\\Courses\\Bioinformatic_approaches\\Week3")
+dir.create("raw")
+download.file("https://www.encodeproject.org/files/ENCFF001LJN/@@download/ENCFF001LJN.fastq.gz", dest="raw/mouseChIP.fastq.gz")
+```
+
+```{r, eval = FALSE}
+dir.create("rfastp.trimmed")
+qc <- Rfastp::rfastp("raw/mouseChIP.fastq.gz", outputFastq="rfastp.trimmed/mouseChIP", 
+                     maxNfilter=0, thread=4, overrepresentationAnalysis=TRUE)
+```
+
+
+### Load genome sequence for GRCm38 version 102 and build index
+
+```{r, eval=FALSE}
+genome <- ah[["AH88477"]]
+
+dir.create("GRCm38v102_genome")
+
+export(import.2bit(genome), "GRCm38v102_genome/genome.fasta.gz", compress=TRUE)
+
+dir.create("aligned")
+```
+
+```{bash, engine.opts='-l', eval=FALSE}
+bowtie2-build --threads 4 GRCm38v102_genome/genome.fasta.gz GRCm38v102_genome/bowtie2
+```
+
+
+### Alignment
+
+```{bash, engine.opts='-l', eval=FALSE}
+(bowtie2 -p 4 -x GRCm38v102_genome/bowtie2 -U trimmed/mouseChIP.fastq.gz) 2> aligned/mouseChIP.bowtie2 |\
+samtools view -bS - | samtools sort -@4 -m 2G - > aligned/mouseChIP.bam
+samtools index aligned/mouseChIP.bam
+```
+```{r comment=''}
+cat(readLines('aligned/mouseChIP.bowtie2'), sep = '\n')
+```
+
+
+### Create a covering track (.bigwig)
+
+```{bash, engine.opts='-l', eval=FALSE}
+mkdir -p tracks
+bamCoverage -p 2 --binSize 20 --normalizeUsing CPM -b aligned/mouseChIP.bam -o tracks/mouseChIP.bw
+```
+
+
+### Peak calling
+
+```{bash, engine.opts='-l', eval=FALSE}
+mkdir -p peaks
+macs2 callpeak --outdir peaks -n mouseChIP --gsize dm -t aligned/mouseChIP.bam
+```
+Create a .bed file for the peaks
+```{r}
+peaks <- rtracklayer::import("peaks/mouseChIP_peaks.narrowPeak")
+```
+
+
+## Plot signal around one of the peaks
+
+```{r}
+plotSignalTracks(list(binned="tracks/mouseChIP.bw", peaks=peaks), region=peaks[26], extend = 500)
+```
+
+### Plot the signal at one gene
+```{r}
+ensdb <- ah[["AH89211"]]
+x <- genes(ensdb)
+head(x)
+plotSignalTracks(list(signal="tracks/mouseChIP.bw", peaks=peaks), region="Clk1", ensdb=ensdb)
+```
