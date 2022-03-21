@@ -78,9 +78,10 @@ bamCoverage -p 2 --binSize 20 --normalizeUsing CPM -b aligned/mouseChIP.bam -o t
 mkdir -p peaks
 macs2 callpeak --outdir peaks -n mouseChIP --gsize dm -t aligned/mouseChIP.bam
 ```
-Create a .bed file for the peaks
+## How many peaks are there?
 ```{r}
 peaks <- rtracklayer::import("peaks/mouseChIP_peaks.narrowPeak")
+length(peaks)
 ```
 
 
@@ -97,3 +98,11 @@ x <- genes(ensdb)
 head(x)
 plotSignalTracks(list(signal="tracks/mouseChIP.bw", peaks=peaks), region="Clk1", ensdb=ensdb)
 ```
+
+### Plot all regions around the strongest peaks (during lecture)
+```{r}
+strong_peaks <- peaks[peaks$qValue>median(peaks$qValue)]
+peakSignals <- signal2Matrix("tracks/mouseChIP.bw", regions=strong_peaks, extend=2000, w=20)
+plotEnrichedHeatmaps(peakSignals, raster_by_magick=FALSE)
+```
+
