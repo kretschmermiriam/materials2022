@@ -106,3 +106,6 @@ peakSignals <- signal2Matrix("tracks/mouseChIP.bw", regions=strong_peaks, extend
 plotEnrichedHeatmaps(peakSignals, raster_by_magick=FALSE)
 ```
 
+```{r}
+sessionInfo()
+```
