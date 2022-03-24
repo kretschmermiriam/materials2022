@@ -1,0 +1,69 @@
+---
+title: "Week4-assignment"
+author: "Miriam Kretschmer"
+date: "21 3 2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+suppressPackageStartupMessages({
+  library(AnnotationHub)
+  library(Rsubread)
+  library(rtracklayer)
+  library(Biostrings)
+  library(Rfastp)
+  library(ensembldb)
+  library(epiwraps)
+})
+ah <- AnnotationHub()
+```
+```{r, eval = FALSE}
+setwd("C:\\Users\\mkretschmer\\Documents\\Courses\\Bioinformatic_approaches\\Week4")
+```
+
+
+## Import peak-level data for Histone marks H3K4me3, H3K4me1, H3K27ac and H3K27me3 in mESC 
+```{r}
+peaks_p300 <- rtracklayer::import("C:\\Users\\mkretschmer\\Documents\\Courses\\Bioinformatic_approaches\\Week3\\peaks\\mouseChIP_peaks.narrowPeak", format = "narrowPeak")
+peaks_H3K4me3 <- import("peaks/ENCFF055QNY.bed.gz", format = "narrowPeak")
+peaks_H3K4me1 <- import("peaks/ENCFF284QUZ.bed.gz", format = "narrowPeak")
+peaks_H3K27ac <- import("peaks/ENCFF587LEB.bed.gz", format = "narrowPeak")
+peaks_H3K27me3 <- import("peaks/ENCFF055QNY.bed.gz", format = "narrowPeak")
+```
+
+How do they look like?
+```{r}
+plotSignalTracks(list(binned="C:\\Users\\mkretschmer\\Documents\\Courses\\Bioinformatic_approaches\\Week3\\tracks\\mouseChIP.bw", peaks=peaks_p300), region=peaks_p300[15], extend = 1000)
+```
+```{r}
+head(peaks_H3K4me3)
+head(peaks_H3K4me1)
+head(peaks_H3K27ac)
+head(peaks_H3K27me3)
+```
+
+
+## What proportion of p300 peaks overlap with the histone marks? 
+```{r}
+overlap_H3K4me3 <- overlapsAny(peaks_p300, peaks_H3K4me3)
+table(overlap_H3K4me3)
+overlap_H3K4me1 <- overlapsAny(peaks_p300, peaks_H3K4me1)
+table(overlap_H3K4me1)
+overlap_H3K27ac <- overlapsAny(peaks_p300, peaks_H3K27ac)
+table(overlap_H3K27ac)
+overlap_H3K27me3 <- overlapsAny(peaks_p300, peaks_H3K27me3)
+table(overlap_H3K27me3)
+```
+None overlap.
+
+
+# How long did the excercise take?
+It was a bit tricky and took some google searching to figure the proper way to import the .bed.gz files. Besides that,  I was surprised to see that there should be no overlaps of any of the marks, coming from the literature I assumed there would be some. It took me about 1,5 h to finish this excercise.
+
+```{r}
+sessionInfo()
+```
