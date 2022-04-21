@@ -1,0 +1,61 @@
+---
+title: "Week7 assignment"
+author: "Miriam Kretschmer"
+date: "20 4 2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+suppressPackageStartupMessages({
+  library(epiwraps)
+  library(AnnotationHub)
+  library(MotifDb)
+  library(memes)
+  library(universalmotif)
+  library(ensembldb)
+  library(ggplot2)
+})
+ah <- AnnotationHub(localHub=TRUE)
+ensdb <- ah[["AH89211"]] #mouse ensembldb object
+```
+
+
+## Obtaining the sites with a GR motif in accessible regions of chromosome 19
+
+```{r}
+motif <- query(MotifDb, c("GCR","Mus"))[[1]]
+genome <- ah[["AH68356"]]
+
+chr19 <- import(genome)["19"]
+
+motifs_GCR <- findMotifInstances(chr19, motif)
+accessible_regions <- callPeaks("atac.chr19.bam")
+seqlevelsStyle(accessible_regions) <- "Ensembl"
+accessible_motifs <- motifs_GCR[overlapsAny(motifs_GCR, accessible_regions)]
+```
+
+## Plotting signal around insertions of motif occurences
+
+```{r}
+tracks <- c("Full cuts"="full_cuts.bw", "NF cuts"="NF_cuts.bw",
+            "Mono cuts"="mono_cuts.bw")
+
+sm <- signal2Matrix(tracks, accessible_motifs, w=5, extend=500)
+
+plotEnrichedHeatmaps(sm, trim=0.95)
+
+smb <- renormalizeBorders(sm)
+plotEnrichedHeatmaps(smb, trim=0.95)
+```
+
+
+This assignment was quite easy and took me 0,5 h. I find it strange though that there is no dip in the center, so the insertion sites are not really flanking the motif in the center.
+
+```{r}
+sessionInfo()
+```
+
