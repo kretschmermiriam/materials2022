@@ -1,0 +1,133 @@
+---
+title: "Week10 assignment"
+author: "Miriam Kretschmer"
+date: "17 5 2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+suppressPackageStartupMessages({
+  library(GenomicRanges)
+  library(epiwraps)
+  library(ggplot2)
+  library(rGREAT)
+  library(AnnotationHub)
+  library(ensembldb)
+  library(bsseq)
+  library(BiocParallel)
+  library(edgeR)
+  library(DMRcate)
+})
+set.seed(40)
+```
+
+```{r, eval=FALSE}
+setwd("C:\\Users\\mkretschmer\\Documents\\Courses\\Bioinformatic_approaches\\Week10")
+```
+
+### Load the data
+```{r}
+dmrRanges <- readRDS("./data_practical/dmr.rds")
+bsseqEx <- readRDS("./data_practical/bsseqEx.rds")
+promoterRegions <- readRDS("./data_practical/promoterRegions.rds")
+geneBodies <- readRDS("./data_practical/genebodies.rds")
+```
+
+
+## Plot differentially methylated regionsin hindbrain and neural tube
+### Raw data
+```{r}
+sampleNames(bsseqEx)
+methRanges<- bsseq::getMeth(bsseqEx, regions=dmrRanges, type="raw", what="perRegion")
+
+RegionsHbRep1 <- GRanges(seqnames=seqnames(dmrRanges),
+                                 ranges=ranges(dmrRanges),
+                                 strand=strand(dmrRanges),
+                                 score=methRanges[,"hb_rep1"])
+RegionsHbRep2 <- GRanges(seqnames=seqnames(dmrRanges),
+                                 ranges=ranges(dmrRanges),
+                                 strand=strand(dmrRanges),
+                                 score=methRanges[,"hb_rep2"])
+RegionsNtRep1 <- GRanges(seqnames=seqnames(dmrRanges),
+                                 ranges=ranges(dmrRanges),
+                                 strand=strand(dmrRanges),
+                                 score=methRanges[,"nt_rep1"])
+RegionsNtRep2 <- GRanges(seqnames=seqnames(dmrRanges),
+                                 ranges=ranges(dmrRanges),
+                                 strand=strand(dmrRanges),
+                                 score=methRanges[,"nt_rep2"])
+tracks <- c(
+    "hbRep1"=RegionsHbRep1,
+    "hbRep2"=RegionsHbRep2,
+    "ntRep1"=RegionsNtRep1,
+    "ntRep2"=RegionsNtRep2
+)
+m <- signal2Matrix(tracks, dmrRanges, extend=1000, w=20, type="scale", smooth=FALSE)
+plotEnrichedHeatmaps(m, scale_title="Proportion\nmethylated", axis_name = c("TSS","TES"), colors = c("white","red"))
+```
+
+### Smoothed data
+
+```{r}
+bsseqEx_sm <- BSmooth(BSseq=bsseqEx, 
+                   verbose = TRUE)
+methRanges_sm<- bsseq::getMeth(bsseqEx_sm, regions=dmrRanges, type="smooth", what="perRegion")
+
+RegionsHbRep1_sm <- GRanges(seqnames=seqnames(dmrRanges),
+                                 ranges=ranges(dmrRanges),
+                                 strand=strand(dmrRanges),
+                                 score=methRanges_sm[,"hb_rep1"])
+RegionsHbRep2_sm <- GRanges(seqnames=seqnames(dmrRanges),
+                                 ranges=ranges(dmrRanges),
+                                 strand=strand(dmrRanges),
+                                 score=methRanges_sm[,"hb_rep2"])
+RegionsNtRep1_sm <- GRanges(seqnames=seqnames(dmrRanges),
+                                 ranges=ranges(dmrRanges),
+                                 strand=strand(dmrRanges),
+                                 score=methRanges_sm[,"nt_rep1"])
+RegionsNtRep2_sm <- GRanges(seqnames=seqnames(dmrRanges),
+                                 ranges=ranges(dmrRanges),
+                                 strand=strand(dmrRanges),
+                                 score=methRanges_sm[,"nt_rep2"])
+tracks_sm <- c(
+    "hbRep1"=RegionsHbRep1_sm,
+    "hbRep2"=RegionsHbRep2_sm,
+    "ntRep1"=RegionsNtRep1_sm,
+    "ntRep2"=RegionsNtRep2_sm
+)
+m_sm <- signal2Matrix(tracks_sm, dmrRanges, extend=1000, w=20, type="scale", smooth=TRUE)
+plotEnrichedHeatmaps(m_sm, scale_title="Proportion\nmethylated", axis_name = c("start","TES"), colors = c("white","red"))
+```
+
+
+## Enrichment analysis: Which are the top biological processes in the differentially methylated regions?
+### Cluster differentially methylated regions
+
+```{r}
+set.seed(123)  #random seed
+cl <- clusterSignalMatrices(m, k=5)
+plotEnrichedHeatmaps(m, row_split=cl, scale_title="Proportion\nmethylated", axis_name = c("start","end"), colors = c("white","red"))
+```
+
+
+```{r}
+split_regions <- split(dmrRanges, cl)
+job <- submitGreatJob(split_regions[["5"]], dmrRanges, species="mm10")
+res <- getEnrichmentTables(job)
+names(res)
+```
+Plot the top Biological Processes:
+```{r, fig.width=9, fig.height=6}
+bp <- res$`GO Biological Process`
+head(bp)
+ggplot(head(bp,20), aes(Hyper_Fold_Enrichment, reorder(name, Hyper_Adjp_BH), size=Hyper_Foreground_Region_Hits, color=-log10(Hyper_Adjp_BH))) + geom_point() + scale_color_viridis_c()
+```
+
+
+```{r}
+sessionInfo()
+```
