@@ -1,0 +1,119 @@
+---
+title: "Main - Accessibility across male and female germ cells"
+author: "Miriam Kretschmer"
+date: "7/03/2022"
+output:
+  bookdown::html_document2:
+    code_folding: hide
+bibliography: citations.bib
+link-citations: yes
+
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE)
+```
+
+```{r}
+suppressPackageStartupMessages(library(tibble))
+
+```
+
+
+
+# Introduction
+
+Dysregulation of the stress hormone pathway is involved in many neuropsychiatric diseases [@Daskalakis2012]. Diseases affecting mental health are often stress induced and have the second highest incidence worldwide following metabolic diseases [@James2018]. Many such complex diseases have a strong heritable component, but genetic predisposition can only partially be attributed to this. Additionally, their pattern of inheritance does not follow mendelian rules, suggesting an unconventional form of inheritance. The molecular underpinnings of unconventional forms of inheritance are yet to be fully understood. Several mechanisms of epigenetic inheritance have been proposed, including small RNAs [@Bohacek2015],[@Gapp2017],[@Bohacek2020]. Small RNAs are only available in small amounts and unstable, and histone post translational modifications are mostly lost in the male germline due to the exchange of histones with protamines [@Wang2019], making both an unlikely mode of epigenetic inheritance in the male germline. Transcription factors on the other hand are more stable proteins, that have been proposed to be retained during fertilisation and escape reprogramming [@Jung2019]. In addition, stress hormone signalling can overcome the Weismann barrier to target germline transcription factors. They thereby are ideally suited to relay environmental information from somatic to germ cells and potentially to the offspring [@Petropoulos2014].
+The transcription factor glucocorticoid receptor (GR) is an important factor involved in the stress response along the hypothalamic-pituitary-axis (HPA), that triggers gene expression regulation almost ubiquitously in the organism via corticosteroid signalling [@Oakley2013]. GR can also be found in mature sperm, a transcriptionally silent cell type with highly condensed chromatin [@Petropoulos2014], [@Nordkap2017]. Our preliminary results by Pierre-Luc Germain and Katharina Gapp show that the GR response element (GRE) is the most enriched transcription factor binding site in open chromatin in sperm using ATAC-seq. This suggests a yet unexplored role of GR in spermiogenesis, sperm chromatin compaction and intergenerational signalling.
+
+Here, I am analysing publicly available ATAC-seq and DNAse-seq datasets produced in cell types of the male and female germline and the early embryo. I will assess overall chromatin accessibility and GRE motif occurrences. I am assessing whether accessible sites in mature sperm are already accessible in immature cell types during spermiogenesis or whether new accessible sites are acquired during maturation. I am also investigating overlaps between accessible sites of male and female germ cells, and whether the accessibility patterns is carried over to the early embryo. We hypothesize that chromatin accessibility is flexible throughout spermiogenesis, and that some accessible sites in the early embryo exclusively overlap with a set of regions accessible in mature sperm, but not mature oocyte.
+
+The samples assessed in  the male germline  include mature spermatozoa, and increasingly immature male germ cell cells including haploid round spermatids (RS), diploid pachytene spermatocytes (PS), diploid differentiating Kit+ spermatogonia (DS) and diploid undifferentiated Thy1+ spermatogonia (UDS). Especially  at the final maturation step from round spermatids to spermatozoa, chromatin undergoes heavy remodeling, including the replacement of most histones by protamines, leading to compactization of sperm chromatin [@Jung2017]. We therefore expect a decrease in chromatin accessibility in  spermatozoa. 
+The samples assessed in the female germline include mature meiose II stage oocytes (MIIoocytes) and immature geminal vesicle oocytes (GVoocytes). In the embryo, observed stages are 1-cell embryos, early 2-cell embryos during minor zygotic genome activation, 2-cell embryos during major zygote genomic activation, 4-cell embryos, 8-cell embryos and murine embryonic stem cells (mESCs). The embryo undergoes heavy shifts in transcriptional regulation especially during and after the 2-cell stage [@Abuhashem2022], which might lead to strong changes in chromatin accessibility across embryonic developmental stages as well.
+
+
+
+# Methods
+
+Publicly available datasets were downloaded from the gene expression omnibus from the publications listed in Table \@ref(tab:table-datasets).
+
+```{r table-datasets}
+c1 <- c("Spermatozoa","Round spermatids","Pachytene spermatocytes","Differentiating Kit+ spermatogonia","Undifferentiated THY1+ spermatogonia","MII stage oocytes","GV stage oocytes","1-cell embryos","early 2-cell embryos","2-cell embryos","4-cell embryos","8-cell embryos","mESCs")
+c2 <- c("@Jung2019, @Jung2017","@Maezawa2017","@Maezawa2017","@Maezawa2017","@Maezawa2017","@Jung2019","@Lu2016","@Lu2016","@Wu2016","@Wu2016, @Lu2016","@Wu2016, @Lu2016","@Wu2016, @Lu2016","@Maza2015, @Lu2016")
+c3 <- c("ATAC-seq, DNAse-seq","ATAC-seq","ATAC-seq","ATAC-seq","ATAC-seq","ATAC-seq","DNAse-seq","DNAse-seq","ATAC-seq", "ATAC-seq, DNAse-seq", "ATAC-seq, DNAse-seq", "ATAC-seq, DNAse-seq", "ATAC-seq, DNAse-seq")
+table <- cbind(c1,c2,c3)
+knitr::kable(table, col.names=c("Cell type","Publications","Assay type"), caption="Publicly available datasets analysed in male and female germline and the early embryo")
+```
+
+The samples were pre-processed by Pierre-Luc Germain, including quality control, adapter trimming, alignment to the mm39 mouse genome and peak calling.
+Besides usual quality marks like duplication rate and GC content analyzed in the pre-processing, samples were assessed for their quality in [Sperm and embryo QC.Rmd][link1]. Accessibility of samples of the same cell type was tested by merging the peak regions of all samples to a single object that contains the consensus peaks, and viewing the sites of individual samples at the peak regions of their consensus peaks. This has been done using `signal2Matrix` and `plotEnrichedHeatmaps` from the package `epiwraps`. For example, Figure \@ref(fig:GV-oocytes-QC-plot) shows one sample displaying better accessibility at the consensus peak regions. Based on this, samples were chosen for downstream analysis.
+
+```{r GV-oocytes-QC-plot, fig.cap="Example QC: Accessibility of MII oocytes at their peak regions"}
+knitr::include_graphics("plots/MIIoocytes_QC.png")
+```
+
+For the samples that passed QC, consensus peaks were generated for each cell type in [Male and female germline peaks.Rmd][link2]. Further, a motif search for the GRE motif as depicted in Figure \@ref(fig:GRE-motif-plot) within the peaks was done using `MotifDb`. Another set of consensus peaks was  generated where only regions containing GRE sites were included.
+
+```{r GRE-motif-plot, fig.cap="GRE motif"}
+knitr::include_graphics("plots/GRE_motif.png")
+```
+
+Consensus peaks and GRE sites containing consensus peaks were used to get a first overview how accessibility is maintained or acquired or lost during maturation of male germ cells in [Plots spermiogenesis.Rmd][link3] and maturation of female germ cells in [Plots oocyte maturation.Rmd][link4].
+
+Finally, subsets were created in [Data subsets.Rmd][link5] to dissect which regions maintain accessibility across germline maturation, and whether there are sites exclusively accessible in one cell type or in one germline.
+
+
+
+# Results
+
+In the male germline, accessible sites seem to be lost with progressing maturation until the round spermatid stage (Figure  \@ref(fig:sperm-plot-fused)). Interestingly, a large proportion of accessible sites is newly acquired in mature spermatozoa.
+
+```{r sperm-plot-fused, fig.cap="Accessibility of male germline cells at peak regions of sperm"}
+knitr::include_graphics("plots/sperm peaks spermiogenesis fused.png")
+```
+
+This effect is even emphasized when only sperm peak regions containing the GRE motif are considered (Figure \@ref(fig:sperm-plot-GRE)).
+
+```{r sperm-plot-GRE, fig.cap="Accessibility of male germline cells at peak regions of sperm containing GRE"}
+knitr::include_graphics("plots/sperm GRE peaks spermiogenesis fused.png")
+```
+
+Looking at GRE containing peak regions of RS, PS seem to have very similar accessible sites. Only a portion of DS and UDS regions display accessibility at RS peaks, although to a very similar degree (Figure \@ref(fig:rs-plot-GRE)). Sperm samples show little accessibility.
+
+```{r rs-plot-GRE, fig.cap="Accessibility of male germline cells at peak regions of round spermatids containing GRE"}
+knitr::include_graphics("plots/RS peaks GRE spermiogenesis fused.png")
+```
+
+A similar observation can be made when looking at PS peaks containing GRE (Figure \@ref(fig:ps-plot-GRE)).
+
+```{r ps-plot-GRE, fig.cap="Accessibility of male germline cells at peak regions of pachytene spermatocytes containing GRE"}
+knitr::include_graphics("plots/PS peaks GRE spermiogenesis fused.png")
+```
+
+DS and UDS sites show similar  accessibility at DS peak regions containing GRE (Figure \@ref(fig:ds-plot-GRE)). RS and PS similarly to the previous figures show equal, but considerably fewer accessible sites. Sperm sites show very little accessibility.
+
+```{r ds-plot-GRE, fig.cap="Accessibility of male germline cells at peak regions of differentiating spermatogonia containing GRE"}
+knitr::include_graphics("plots/DS peaks GRE spermiogenesis fused.png")
+```
+
+The effects of Figure \@ref(fig:ds-plot-GRE) are emphasized when viewing accessibility of male germ cells at UDS peak regions containing GRE (Figure \@ref(fig:uds-plot-GRE)). Importantly, the signal for UDS is stronger than for DS. Possibly, there might be a  subset of regions that are exclusively accessible in this most immature cell type.
+
+```{r uds-plot-GRE, fig.cap="Accessibility of male germline cells at peak regions of undifferentiated spermatogonia containing GRE"}
+knitr::include_graphics("plots/UDS peaks GRE spermiogenesis fused.png")
+```
+
+
+This is work in progress. The subsets are currently generated to find out if there are regions exclusive to a cell type and how they behave across spermiogenesis and in comparison to female germ cells.
+
+
+```{r}
+sessionInfo()
+```
+
+[link1]: https://github.com/kretschmermiriam/materials2022/blob/main/Project%20-%20Accessibility%20across%20male%20and%20female%20germline/Sperm-and-embryo-QC.html
+[link2]: https://github.com/kretschmermiriam/materials2022/blob/main/Project%20-%20Accessibility%20across%20male%20and%20female%20germline/Male-and-female-germline-peaks.html
+[link3]: https://github.com/kretschmermiriam/materials2022/blob/main/Project%20-%20Accessibility%20across%20male%20and%20female%20germline/Plots-spermiogenesis.html
+[link4]: https://github.com/kretschmermiriam/materials2022/blob/main/Project%20-%20Accessibility%20across%20male%20and%20female%20germline/Plots-oocyte-maturation.html
+[link5]:
+
+# References
