@@ -1,0 +1,116 @@
+---
+title: "Plots oocyte maturation"
+author: "Miriam Kretschmer"
+date: "7/4/2022"
+output:
+  bookdown::html_document2:
+    code_folding: hide
+bibliography: citations.bib
+link-citations: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+```{r, cache=TRUE}
+#setwd("/mnt/bohacek/kathi/miriam/accessibilty_sperm_embryo/")
+
+suppressPackageStartupMessages(library(rtracklayer))
+suppressPackageStartupMessages(library(epiwraps))
+```
+
+
+
+# Introduction
+
+Plots are created to visualize which regions of different cell types are accessible at peaks of another cell type using the files generated in "Male and female germline peaks.Rmd" and the samples established in "Sperm and embryo QC.Rmd". Signals are normalized for visualization using linear normalization as described in "Normalization.Rmd". Accessibility is compared between peaks and GRE motif containing peaks.
+
+
+
+## MII stage oocytes
+
+### MIIoocyte peaks
+
+```{r plot-MIIoocyte, results='hide', fig.cap="Accessibility of female germline cells at peak regions of MIIoocytes"}
+tracks <- c(
+  GVoocyte1="/mnt/bohacek/kathi/fromLiterature/DNAse/tracks/DNAse_PRJNA308221_OocyteGV_GSM2183029.bw",
+  GVoocyte2="/mnt/bohacek/kathi/fromLiterature/DNAse/tracks/DNAse_PRJNA308221_OocyteGV_GSM2183030.bw",
+  mIIoocyte1="/mnt/bohacek/kathi/fromLiterature/ATAC_PE/tracks/ATAC_PRJNA480448_MIIoocyte_GSM3262863.bw"
+)
+peaks <- import("/mnt/bohacek/kathi/fromLiterature/ATAC_PE/peaks/ATAC_PRJNA480448_MIIoocyte_GSM3262863_peaks.broadPeak")
+m <- signal2Matrix(tracks, peaks, w = 20, BPPARAM = 2)
+
+plotEnrichedHeatmaps(lapply(m,log1p), row_title="Peaks from MIIoocytes", trim = 0.99, raster_resize_mat = TRUE)
+```
+
+```{r plot-MIIoocyte-fused, results='hide', fig.cap="Accessibility of female germline cells at peak regions of MIIoocytes"}
+fused_m <- mergeSignalMatrices(m[1:2])
+
+fused_m <- c(list(fused_GVoocytes=fused_m), m[-1:-2])
+plotEnrichedHeatmaps(lapply(fused_m,log1p), row_title="Peaks from MIIoocytes", trim = 0.99, raster_resize_mat = TRUE)
+```
+
+
+### MII oocyte peaks contaiing GRE
+
+```{r plot-MIIoocyte-GRE, results='hide', fig.cap="Accessibility of female germline cells at peak regions of MIIoocytes containing GRE"}
+peaks <- readRDS("rds_saves/peaks/peaks_with_GRE_mIIoocytes.rds")
+m <- signal2Matrix(tracks, peaks, w = 20, BPPARAM = 2)
+
+plotEnrichedHeatmaps(lapply(m,log1p), row_title="Peaks from MIIoocytes containing GRE", trim = 0.99, raster_resize_mat = TRUE)
+```
+
+```{r plot-MIIoocyte-fused-GRE, results='hide', fig.cap="Accessibility of female germline cells at peak regions of MIIoocytes containing GRE"}
+fused_m <- mergeSignalMatrices(m[1:2])
+
+fused_m <- c(list(fused_GVoocytes=fused_m), m[-1:-2])
+plotEnrichedHeatmaps(lapply(fused_m,log1p), row_title="Peaks from MIIoocytes containing GRE", trim = 0.99, raster_resize_mat = TRUE)
+```
+
+
+
+## GV stage oocytes
+
+### GVoocyte peaks
+
+Testing individual samples first
+
+```{r plot-GVoocyte, results='hide', fig.cap="Accessibility of female germline cells at peak regions of GVoocytes"}
+peaks <- readRDS("rds_saves/peaks/consensus.peaks_GVoocytes.rds")
+m <- signal2Matrix(tracks, peaks, w = 20, BPPARAM = 2)
+
+plotEnrichedHeatmaps(lapply(m,log1p), row_title="Peaks from GVoocytes", trim = 0.99, raster_resize_mat = TRUE)
+```
+
+Testing fused samples
+
+```{r plot-GVoocyte-fused, results='hide', fig.cap="Accessibility of female germline cells at peak regions of GVoocytes"}
+fused_m <- mergeSignalMatrices(m[1:2])
+
+fused_m <- c(list(fused_GVoocytes=fused_m), m[-1:-2])
+plotEnrichedHeatmaps(lapply(fused_m,log1p), row_title="Peaks from GV oocytes", trim = 0.99, raster_resize_mat = TRUE)
+```
+
+
+### GVoocyte peaks containing GRE
+
+Testing individual samples first
+
+```{r plot-GVoocyte-GRE, results='hide', fig.cap="Accessibility of female germline cells at peak regions of GVoocytes containing GRE"}
+peaks <- readRDS("rds_saves/peaks/peaks_with_GRE_GVoocytes.rds")
+m <- signal2Matrix(tracks, peaks, w = 20, BPPARAM = 2)
+
+plotEnrichedHeatmaps(lapply(m,log1p), row_title="Peaks from GVoocytes containing GRE", trim = 0.99, raster_resize_mat = TRUE)
+```
+
+Testing fused samples
+
+```{r plot-GVoocyte-fused-GRE, results='hide', fig.cap="Accessibility of female germline cells at peak regions of GVoocytes containing GRE"}
+fused_m <- mergeSignalMatrices(m[1:2])
+
+fused_m <- c(list(fused_GVoocytes=fused_m), m[-1:-2])
+plotEnrichedHeatmaps(lapply(fused_m,log1p), row_title="Peaks from GV oocytes containing GRE", trim = 0.99, raster_resize_mat = TRUE)
+```
+
+Obviously due to the very low peak count of the GVoocyte samples, the plots are  to be viewed critically. Subsetting the MIIoocyte sample might reveal regions that are accessible in MII oocytes, but not GVoocytes and  vice versa, but are to be viewed cautiously as well.
