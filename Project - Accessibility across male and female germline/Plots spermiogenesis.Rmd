@@ -1,0 +1,311 @@
+---
+title: "Plots spermiogenesis"
+author: "Miriam Kretschmer"
+date: "5/9/2022"
+output:
+  bookdown::html_document2:
+    code_folding: hide
+bibliography: citations.bib
+link-citations: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+```{r, cache=TRUE}
+#setwd("/mnt/bohacek/kathi/miriam/accessibilty_sperm_embryo/")
+
+suppressPackageStartupMessages(library(GenomicRanges))
+suppressPackageStartupMessages(library(epiwraps))
+```
+
+
+
+# Introduction
+
+Plots are created to visualize which regions of different cell types are accessible at peaks of another cell type using the files generated in "Male and female germline peaks.Rmd" and the samples established in "Sperm and embryo QC.Rmd". Signals are normalized for visualization using linear normalization as described in "Normalization.Rmd". Accessibility is compared between peaks and GRE motif containing peaks.
+
+
+## Sperm
+
+### Sperm peaks
+
+Looking at individual samples first
+```{r tracks}
+tracks <- c(
+  sperm1="/mnt/bohacek/kathi/fromLiterature/ATAC_PE/tracks/ATAC_PRJNA480448_Sperm_GSM3262855.bw",
+  sperm2="/mnt/bohacek/kathi/fromLiterature/ATAC_PE/tracks/ATAC_PRJNA480448_Sperm_GSM3262856.bw",
+  sperm3="/mnt/bohacek/kathi/fromLiterature/ATAC_PE/tracks/ATAC_PRJNA315208_Sperm_GSM2088378.bw",
+  rs1="/mnt/bohacek/kathi/fromLiterature/ATAC_SE/tracks/ATACse_PRJNA399533_RoundSpermatides_GSM2751133.bw",
+  rs2="/mnt/bohacek/kathi/fromLiterature/ATAC_SE/tracks/ATACse_PRJNA399533_RoundSpermatides_GSM2751134.bw",
+  ps1="/mnt/bohacek/kathi/fromLiterature/ATAC_SE/tracks/ATACse_PRJNA399533_PachytenSpermatocytes_GSM2751129.bw",
+  ps2="/mnt/bohacek/kathi/fromLiterature/ATAC_SE/tracks/ATACse_PRJNA399533_PachytenSpermatocytes_GSM2751130.bw",
+  ds1="/mnt/bohacek/kathi/fromLiterature/ATAC_SE/tracks/ATACse_PRJNA399533_cKitposSpermatogonia_GSM2751125.bw",
+  ds2="/mnt/bohacek/kathi/fromLiterature/ATAC_SE/tracks/ATACse_PRJNA399533_cKitposSpermatogonia_GSM2751126.bw",
+  uds1="/mnt/bohacek/kathi/fromLiterature/ATAC_SE/tracks/ATACse_PRJNA399533_Thy1posSpermatogonia_GSM2751121.bw",
+  uds2="/mnt/bohacek/kathi/fromLiterature/ATAC_SE/tracks/ATACse_PRJNA399533_Thy1posSpermatogonia_GSM2751122.bw",
+  GVoocyte1="/mnt/bohacek/kathi/fromLiterature/DNAse/tracks/DNAse_PRJNA308221_OocyteGV_GSM2183029.bw",
+  GVoocyte2="/mnt/bohacek/kathi/fromLiterature/DNAse/tracks/DNAse_PRJNA308221_OocyteGV_GSM2183030.bw",
+  mIIoocyte1="/mnt/bohacek/kathi/fromLiterature/ATAC_PE/tracks/ATAC_PRJNA480448_MIIoocyte_GSM3262863.bw"
+)
+```
+
+```{r plot-sperm, results='hide', fig.height=5, fig.width=15, fig.cap="Accessibility of male germline cells at peak regions of sperm"}
+peaks <- readRDS("rds_saves/peaks/consensus.peaks_sperm.rds")
+#m <- signal2Matrix(tracks[1:11], peaks, w = 20, BPPARAM = 2)
+m <- readRDS("rds_saves/m_spermconsensus_spermiogenesistracks.rds")
+norm_factor <- readRDS("rds_saves/norm_factor.rds")
+m <- rescaleSignalMatrices(m, scaleFactors = 1/norm_factor)
+png("plots/peaks from sperm across spermiogenesis.png", width=1024, height=768)
+x <- plotEnrichedHeatmaps(lapply(m,log1p), row_title="Peaks from sperm", trim = 0.99, raster_resize_mat = TRUE)
+print(x)
+dev.off()
+print(x)
+```
+
+
+Testing fused samples
+```{r plot-sperm-fused, results='hide', fig.height=5, fig.width=15, fig.cap="Accessibility of male germline cells at peak regions of sperm"}
+fused_sperm_mat <- mergeSignalMatrices(m[1:3])
+fused_rs_mat <- mergeSignalMatrices(m[4:5])
+fused_ps_mat <- mergeSignalMatrices(m[6:7])
+fused_ds_mat <- mergeSignalMatrices(m[8:9])
+fused_uds_mat <- mergeSignalMatrices(m[10:11])
+
+fused_m <- c(list(fused_sperm=fused_sperm_mat), list(fused_rs=fused_rs_mat), list(fused_ps=fused_ps_mat), list(fused_ds=fused_ds_mat), list(fused_uds=fused_uds_mat), m[-1:-14])
+plotEnrichedHeatmaps(lapply(fused_m,log1p), row_title="Peaks from sperm", trim = 0.99, raster_resize_mat = TRUE)
+```
+
+
+### Sperm peaks containing GRE
+
+Looking at individual samples first
+
+```{r plot-sperm-GRE, results='hide', fig.height=5, fig.width=15, fig.cap="Accessibility of male germline cells at peak regions of sperm containing GRE"}
+peaks <- readRDS("rds_saves/peaks/peaks_with_GRE_sperm.rds")
+m <- signal2Matrix(tracks[1:11], peaks, w = 20, BPPARAM = 2)
+m <- rescaleSignalMatrices(m, scaleFactors = 1/norm_factor)
+plotEnrichedHeatmaps(lapply(m,log1p), row_title="Peaks from sperm containing GRE", trim = 0.99, raster_resize_mat = TRUE)
+```
+
+Testing fused samples
+```{r plot-sperm-fused-GRE, results='hide', fig.height=5, fig.width=15, fig.cap="Accessibility of male germline cells at peak regions of sperm containing GRE"}
+fused_sperm_mat <- mergeSignalMatrices(m[1:3])
+fused_rs_mat <- mergeSignalMatrices(m[4:5])
+fused_ps_mat <- mergeSignalMatrices(m[6:7])
+fused_ds_mat <- mergeSignalMatrices(m[8:9])
+fused_uds_mat <- mergeSignalMatrices(m[10:11])
+
+fused_m <- c(list(fused_sperm=fused_sperm_mat), list(fused_rs=fused_rs_mat), list(fused_ps=fused_ps_mat), list(fused_ds=fused_ds_mat), list(fused_uds=fused_uds_mat), m[-1:-14])
+plotEnrichedHeatmaps(lapply(fused_m,log1p), row_title="Peaks from sperm containing GRE", trim = 0.99, raster_resize_mat = TRUE)
+```
+
+
+
+## Round spermatids
+
+### Round spermatid peaks
+
+Looking at individual samples first
+
+```{r plot-rs, results='hide', fig.height=5, fig.width=15, fig.cap="Accessibility of male germline cells at peak regions of round spermatids"}
+peaks <- readRDS("rds_saves/peaks/consensus.peaks_rs.rds")
+m <- signal2Matrix(tracks[1:11], peaks, w = 20, BPPARAM = 2)
+m <- rescaleSignalMatrices(m, scaleFactors = 1/norm_factor)
+plotEnrichedHeatmaps(lapply(m,log1p), row_title="Peaks from round spermatids", trim = 0.99, raster_resize_mat = TRUE)
+```
+
+Testing fused samples
+```{r plot-rs-fused, results='hide', fig.height=5, fig.width=15, fig.cap="Accessibility of male germline cells at peak regions of round spermatids containing GRE"}
+fused_sperm_mat <- mergeSignalMatrices(m[1:3])
+fused_rs_mat <- mergeSignalMatrices(m[4:5])
+fused_ps_mat <- mergeSignalMatrices(m[6:7])
+fused_ds_mat <- mergeSignalMatrices(m[8:9])
+fused_uds_mat <- mergeSignalMatrices(m[10:11])
+
+fused_m <- c(list(fused_sperm=fused_sperm_mat), list(fused_rs=fused_rs_mat), list(fused_ps=fused_ps_mat), list(fused_ds=fused_ds_mat), list(fused_uds=fused_uds_mat), m[-1:-14])
+plotEnrichedHeatmaps(lapply(fused_m,log1p), row_title="Peaks from round spermatids", trim = 0.99, raster_resize_mat = TRUE)
+```
+
+
+### Round spermatid peaks containing GRE
+
+Looking at individual samples first
+
+```{r plot-rs-GRE, results='hide', fig.height=5, fig.width=15, fig.cap="Accessibility of male germline cells at peak regions of round spermatids containing GRE"}
+peaks <- readRDS("rds_saves/peaks/peaks_with_GRE_rs.rds")
+m <- signal2Matrix(tracks[1:11], peaks, w = 20, BPPARAM = 2)
+m <- rescaleSignalMatrices(m, scaleFactors = 1/norm_factor)
+plotEnrichedHeatmaps(lapply(m,log1p), row_title="Peaks from round spermatids containing GRE", trim = 0.99, raster_resize_mat = TRUE)
+```
+
+Testing fused samples
+```{r plot-rs-fused-GRE, results='hide', fig.height=5, fig.width=15, fig.cap="Accessibility of male germline cells at peak regions of round spermatids containing GRE"}
+fused_sperm_mat <- mergeSignalMatrices(m[1:3])
+fused_rs_mat <- mergeSignalMatrices(m[4:5])
+fused_ps_mat <- mergeSignalMatrices(m[6:7])
+fused_ds_mat <- mergeSignalMatrices(m[8:9])
+fused_uds_mat <- mergeSignalMatrices(m[10:11])
+
+fused_m <- c(list(fused_sperm=fused_sperm_mat), list(fused_rs=fused_rs_mat), list(fused_ps=fused_ps_mat), list(fused_ds=fused_ds_mat), list(fused_uds=fused_uds_mat), m[-1:-14])
+plotEnrichedHeatmaps(lapply(fused_m,log1p), row_title="Peaks from round spermatids containing GRE", trim = 0.99, raster_resize_mat = TRUE)
+```
+
+
+
+## Pachytene spermatocytes
+
+### Pachytene spermatocyte  peaks
+
+Looking at individual samples first
+
+```{r plot-ps, results='hide', fig.height=5, fig.width=15, fig.cap="Accessibility of male germline cells at peak regions of pachytene spermatocytes"}
+peaks <- readRDS("rds_saves/peaks/consensus.peaks_ps.rds")
+m <- signal2Matrix(tracks[1:11], peaks, w = 20, BPPARAM = 2)
+m <- rescaleSignalMatrices(m, scaleFactors = 1/norm_factor)
+plotEnrichedHeatmaps(lapply(m,log1p), row_title="Peaks from pachytene spermatocytes", trim = 0.99, raster_resize_mat = TRUE)
+```
+
+Testing fused samples
+```{r plot-ps-fused, results='hide', fig.height=5, fig.width=15, fig.cap="Accessibility of male germline cells at peak regions of pachytene spermatocytes containing GRE"}
+fused_sperm_mat <- mergeSignalMatrices(m[1:3])
+fused_rs_mat <- mergeSignalMatrices(m[4:5])
+fused_ps_mat <- mergeSignalMatrices(m[6:7])
+fused_ds_mat <- mergeSignalMatrices(m[8:9])
+fused_uds_mat <- mergeSignalMatrices(m[10:11])
+
+fused_m <- c(list(fused_sperm=fused_sperm_mat), list(fused_rs=fused_rs_mat), list(fused_ps=fused_ps_mat), list(fused_ds=fused_ds_mat), list(fused_uds=fused_uds_mat), m[-1:-14])
+plotEnrichedHeatmaps(lapply(fused_m,log1p), row_title="Peaks from pachytene spermatocytes", trim = 0.99, raster_resize_mat = TRUE)
+```
+
+
+### Pachytene spermatocytes peaks containing GRE
+
+Looking at individual samples first
+
+```{r plot-ps-GRE, results='hide', fig.height=5, fig.width=15, fig.cap="Accessibility of male germline cells at peak regions of pachytene spermatocytes containing GRE"}
+peaks <- readRDS("rds_saves/peaks/peaks_with_GRE_ps.rds")
+m <- signal2Matrix(tracks[1:11], peaks, w = 20, BPPARAM = 2)
+m <- rescaleSignalMatrices(m, scaleFactors = 1/norm_factor)
+plotEnrichedHeatmaps(lapply(m,log1p), row_title="Peaks from pachytene spermatocytes containing GRE", trim = 0.99, raster_resize_mat = TRUE)
+```
+
+Testing fused samples
+```{r plot-ps-fused-GRE, results='hide', fig.height=5, fig.width=15, fig.cap="Accessibility of male germline cells at peak regions of pachytene spermatocytes containing GRE"}
+fused_sperm_mat <- mergeSignalMatrices(m[1:3])
+fused_rs_mat <- mergeSignalMatrices(m[4:5])
+fused_ps_mat <- mergeSignalMatrices(m[6:7])
+fused_ds_mat <- mergeSignalMatrices(m[8:9])
+fused_uds_mat <- mergeSignalMatrices(m[10:11])
+
+fused_m <- c(list(fused_sperm=fused_sperm_mat), list(fused_rs=fused_rs_mat), list(fused_ps=fused_ps_mat), list(fused_ds=fused_ds_mat), list(fused_uds=fused_uds_mat), m[-1:-14])
+plotEnrichedHeatmaps(lapply(fused_m,log1p), row_title="Peaks from pachytene spermatocytes containing GRE", trim = 0.99, raster_resize_mat = TRUE)
+```
+
+
+
+## Differentiating spermatogonia
+
+### Differentiating spermatogonia  peaks
+
+Looking at individual samples first
+
+```{r plot-ds, results='hide', fig.height=5, fig.width=15, fig.cap="Accessibility of male germline cells at peak regions of differentiating spermatogonia"}
+peaks <- readRDS("/mnt/bohacek/kathi/miriam/accessibility_sperm_embryo/rds_saves/peaks/consensus.peaks_ds.rds")
+m <- signal2Matrix(tracks[1:11], peaks, w = 20, BPPARAM = 2)
+m <- rescaleSignalMatrices(m, scaleFactors = 1/norm_factor)
+plotEnrichedHeatmaps(lapply(m,log1p), row_title="Peaks from differentiating spermatogonia", trim = 0.99, raster_resize_mat = TRUE)
+```
+
+Testing fused samples
+```{r plot-ds-fused, results='hide', fig.height=5, fig.width=15, fig.cap="Accessibility of male germline cells at peak regions of differentiating spermatogonia containing GRE"}
+fused_sperm_mat <- mergeSignalMatrices(m[1:3])
+fused_rs_mat <- mergeSignalMatrices(m[4:5])
+fused_ps_mat <- mergeSignalMatrices(m[6:7])
+fused_ds_mat <- mergeSignalMatrices(m[8:9])
+fused_uds_mat <- mergeSignalMatrices(m[10:11])
+
+fused_m <- c(list(fused_sperm=fused_sperm_mat), list(fused_rs=fused_rs_mat), list(fused_ps=fused_ps_mat), list(fused_ds=fused_ds_mat), list(fused_uds=fused_uds_mat), m[-1:-14])
+plotEnrichedHeatmaps(lapply(fused_m,log1p), row_title="Peaks from differentiating spermatogonia", trim = 0.99, raster_resize_mat = TRUE)
+```
+
+
+### Differentiating spermatogonia peaks containing GRE
+
+Looking at individual samples first
+
+```{r plot-ds-GRE, results='hide', fig.height=5, fig.width=15, fig.cap="Accessibility of male germline cells at peak regions of differentiating spermatogonia containing GRE"}
+peaks <- readRDS("rds_saves/peaks/peaks_with_GRE_ds.rds")
+m <- signal2Matrix(tracks[1:11], peaks, w = 20, BPPARAM = 2)
+m <- rescaleSignalMatrices(m, scaleFactors = 1/norm_factor)
+plotEnrichedHeatmaps(lapply(m,log1p), row_title="Peaks from differentiating spermatogonia containing GRE", trim = 0.99, raster_resize_mat = TRUE)
+```
+
+Testing fused samples
+```{r plot-ds-fused-GRE, results='hide', fig.height=5, fig.width=15, fig.cap="Accessibility of male germline cells at peak regions of differentiating spermatogonia containing GRE"}
+fused_sperm_mat <- mergeSignalMatrices(m[1:3])
+fused_rs_mat <- mergeSignalMatrices(m[4:5])
+fused_ps_mat <- mergeSignalMatrices(m[6:7])
+fused_ds_mat <- mergeSignalMatrices(m[8:9])
+fused_uds_mat <- mergeSignalMatrices(m[10:11])
+
+fused_m <- c(list(fused_sperm=fused_sperm_mat), list(fused_rs=fused_rs_mat), list(fused_ps=fused_ps_mat), list(fused_ds=fused_ds_mat), list(fused_uds=fused_uds_mat), m[-1:-14])
+plotEnrichedHeatmaps(lapply(fused_m,log1p), row_title="Peaks from differentiating spermatogonia containing GRE", trim = 0.99, raster_resize_mat = TRUE)
+```
+
+
+
+## Undifferentiated spermatogonia
+
+### Undifferentiated spermatogonia  peaks
+
+Looking at individual samples first
+
+```{r plot-uds, results='hide', fig.height=5, fig.width=15, fig.cap="Accessibility of male germline cells at peak regions of undifferentiated spermatogonia"}
+peaks <- readRDS("rds_saves/peaks/consensus.peaks_uds.rds")
+m <- signal2Matrix(tracks[1:11], peaks, w = 20, BPPARAM = 2)
+m <- rescaleSignalMatrices(m, scaleFactors = 1/norm_factor)
+plotEnrichedHeatmaps(lapply(m,log1p), row_title="Peaks from undifferentiated spermatogonia", trim = 0.99, raster_resize_mat = TRUE)
+```
+
+Testing fused samples
+```{r plot-uds-fused, results='hide', fig.height=5, fig.width=15, fig.cap="Accessibility of male germline cells at peak regions of undifferentiated spermatogonia containing GRE"}
+fused_sperm_mat <- mergeSignalMatrices(m[1:3])
+fused_rs_mat <- mergeSignalMatrices(m[4:5])
+fused_ps_mat <- mergeSignalMatrices(m[6:7])
+fused_ds_mat <- mergeSignalMatrices(m[8:9])
+fused_uds_mat <- mergeSignalMatrices(m[10:11])
+
+fused_m <- c(list(fused_sperm=fused_sperm_mat), list(fused_rs=fused_rs_mat), list(fused_ps=fused_ps_mat), list(fused_ds=fused_ds_mat), list(fused_uds=fused_uds_mat), m[-1:-14])
+plotEnrichedHeatmaps(lapply(fused_m,log1p), row_title="Peaks from undifferentiated spermatogonia", trim = 0.99, raster_resize_mat = TRUE)
+```
+
+
+### Undifferentiated spermatogonia peaks containing GRE
+
+Looking at individual samples first
+
+```{r plot-uds-GRE, results='hide', fig.height=5, fig.width=15, fig.cap="Accessibility of male germline cells at peak regions of undifferentiated spermatogonia containing GRE"}
+peaks <- readRDS("rds_saves/peaks/peaks_with_GRE_uds.rds")
+m <- signal2Matrix(tracks[1:11], peaks, w = 20, BPPARAM = 2)
+m <- rescaleSignalMatrices(m, scaleFactors = 1/norm_factor)
+plotEnrichedHeatmaps(lapply(m,log1p), row_title="Peaks from undifferentiated spermatogonia containing GRE", trim = 0.99, raster_resize_mat = TRUE)
+```
+
+Testing fused samples
+```{r plot-uds-fused-GRE, results='hide', fig.height=5, fig.width=15, fig.cap="Accessibility of male germline cells at peak regions of undifferentiated spermatogonia containing GRE"}
+fused_sperm_mat <- mergeSignalMatrices(m[1:3])
+fused_rs_mat <- mergeSignalMatrices(m[4:5])
+fused_ps_mat <- mergeSignalMatrices(m[6:7])
+fused_ds_mat <- mergeSignalMatrices(m[8:9])
+fused_uds_mat <- mergeSignalMatrices(m[10:11])
+
+fused_m <- c(list(fused_sperm=fused_sperm_mat), list(fused_rs=fused_rs_mat), list(fused_ps=fused_ps_mat), list(fused_ds=fused_ds_mat), list(fused_uds=fused_uds_mat), m[-1:-14])
+plotEnrichedHeatmaps(lapply(fused_m,log1p), row_title="Peaks from undifferentiated spermatogonia containing GRE", trim = 0.99, raster_resize_mat = TRUE)
+```
+
+
+```{r}
+sessionInfo()
+```

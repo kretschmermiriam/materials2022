@@ -1,0 +1,291 @@
+---
+title: "Normalization"
+author: "Miriam Kretschmer"
+date: "2/24/2022"
+output:
+  bookdown::html_document2:
+    code_folding: hide
+bibliography: citations.bib
+link-citations: yes
+
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE)
+```
+
+```{r}
+#setwd("/mnt/bohacek/kathi/miriam/accessibilty_sperm_embryo")
+
+suppressPackageStartupMessages(library(GenomicAlignments))
+suppressPackageStartupMessages(library(GenomicRanges))
+suppressPackageStartupMessages(library(edgeR))
+suppressPackageStartupMessages(library(SummarizedExperiment))
+suppressPackageStartupMessages(library(sechm))
+suppressPackageStartupMessages(library(Rsubread))
+suppressPackageStartupMessages(library(epiwraps))
+```
+
+
+
+# Introduction
+
+For visualization of accessibility across different cell types, it might be necessary to normalize the data for better comparability. Here, different normalization methods are tested and the resulting plots compared. For this, the accessibility of sperm consensus peaks across immature male germline cell types will be viewed.
+
+
+# Unnormalized plot
+
+```{r tracks}
+tracks <- c(
+  "sperm1"="/mnt/bohacek/kathi/fromLiterature/ATAC_PE/tracks/ATAC_PRJNA480448_Sperm_GSM3262855.bw",
+  "sperm2"="/mnt/bohacek/kathi/fromLiterature/ATAC_PE/tracks/ATAC_PRJNA480448_Sperm_GSM3262856.bw",
+  "sperm3"="/mnt/bohacek/kathi/fromLiterature/ATAC_PE/tracks/ATAC_PRJNA315208_Sperm_GSM2088378.bw",
+  "rs1"="/mnt/bohacek/kathi/fromLiterature/ATAC_SE/tracks/ATACse_PRJNA399533_RoundSpermatides_GSM2751133.bw",
+  "rs2"="/mnt/bohacek/kathi/fromLiterature/ATAC_SE/tracks/ATACse_PRJNA399533_RoundSpermatides_GSM2751134.bw",
+  "ps1"="/mnt/bohacek/kathi/fromLiterature/ATAC_SE/tracks/ATACse_PRJNA399533_PachytenSpermatocytes_GSM2751129.bw",
+  "ps2"="/mnt/bohacek/kathi/fromLiterature/ATAC_SE/tracks/ATACse_PRJNA399533_PachytenSpermatocytes_GSM2751130.bw",
+  "ds1"="/mnt/bohacek/kathi/fromLiterature/ATAC_SE/tracks/ATACse_PRJNA399533_cKitposSpermatogonia_GSM2751125.bw",
+  "ds2"="/mnt/bohacek/kathi/fromLiterature/ATAC_SE/tracks/ATACse_PRJNA399533_cKitposSpermatogonia_GSM2751126.bw",
+  "uds1"="/mnt/bohacek/kathi/fromLiterature/ATAC_SE/tracks/ATACse_PRJNA399533_Thy1posSpermatogonia_GSM2751121.bw",
+  "uds2"="/mnt/bohacek/kathi/fromLiterature/ATAC_SE/tracks/ATACse_PRJNA399533_Thy1posSpermatogonia_GSM2751122.bw"
+)
+```
+
+```{r plot-sperm, results='hide', fig.height=5, fig.width=15, fig.cap="Accessibility of male germline cells at peak regions of sperm"}
+peaks <- readRDS("rds_saves/peaks/consensus.peaks_sperm.rds")
+#m <- signal2Matrix(tracks[1:11], peaks, w = 20, BPPARAM = 2)
+#saveRDS(m, "rds_saves/m_spermconsensus_spermiogenesistracks.rds")
+m <- readRDS("rds_saves/m_spermconsensus_spermiogenesistracks.rds")
+plotEnrichedHeatmaps(m, row_title="Peaks from sperm", trim = 0.99, raster_resize_mat = TRUE)
+```
+
+The signal on the sperm samples is weaker than for other cell types, which should not be the case as sperm consensus peaks are used. The goal is to increase the signal intensity in the sperm samples and decrease the intensity in "overexposed" other cell types.
+
+Logarithmizing the signals to improve the sperm signal intensity:
+
+```{r plot-sperm-log, results='hide', fig.height=5, fig.width=15, fig.cap="Accessibility of male germline cells at peak regions of sperm, logarithmized"}
+plotEnrichedHeatmaps(lapply(m,log1p), row_title="Peaks from sperm", trim = 0.99, raster_resize_mat = TRUE)
+```
+
+# Normalization
+
+## Background normalization
+
+Background normalization based on the given tracks.
+
+```{r background-normalized-plot, results='hide',  fig.height=5, fig.width=15, fig.cap="Accessibility of male germline cells at peak regions of sperm using background normalization"}
+norm_factor <- bwNormFactors(x = tracks)
+norm_m <- rescaleSignalMatrices(m,scaleFactors = norm_factor)
+plotEnrichedHeatmaps(norm_m, row_title="Peaks from sperm", trim = 0.99, raster_resize_mat = TRUE)
+```
+
+Another way of background normalization:
+
+```{r renormalized-plot, fig.height=5, fig.width=15, fig.cap="Accessibility of male germline cells at peak regions of sperm using background normalization"}
+plotEnrichedHeatmaps(renormalizeBorders(m), row_title="Peaks from sperm", trim = 0.99, raster_resize_mat = TRUE)
+```
+
+Background normalization does not improve the plot, rather resulting in the opposite of the wanted effect.
+
+
+
+## Count based normalization
+
+Assuming samples differ either between a cell type or across different cell types. The number of reads is counted in each peak for each sample. For computational lightness, the reads of only chromosome 1 are computed per sample. Further, for simplicity, only samples that .bam files are available of and that are all single end reads are used for this.
+
+```{r subset-bams, results='hide', eval=FALSE}
+bamfiles <- list.files("/mnt/bohacek/kathi/fromLiterature/ATAC_SE/aligned", pattern="bam$", full=TRUE)
+names(bamfiles) <- gsub("\\.bam","",c("ds1","ds2","ps1","ps2","rs1","rs2","uds1","uds2"))
+
+bam_chr1 <- list()
+for(i in bamfiles){
+  dat <- readGAlignments(i)
+  bam_chr1[[i]] <- dat[seqnames(dat)=="1"]
+}
+#saveRDS(bam_chr1, "rds_saves/bam_chr1.rds")
+```
+
+```{r save-bams, eval=FALSE}
+bam_ds1 <- bam_chr1$`/mnt/bohacek/kathi/fromLiterature/ATAC_SE/aligned/ATACse_PRJNA399533_cKitposSpermatogonia_GSM2751125.bam`
+export(bam_ds1, "rds_saves/chr1_bams/bam_ds1.bam")
+bam_ds2 <- bam_chr1$`/mnt/bohacek/kathi/fromLiterature/ATAC_SE/aligned/ATACse_PRJNA399533_cKitposSpermatogonia_GSM2751126.bam`
+export(bam_ds2, "rds_saves/chr1_bams/bam_ds2.bam")
+
+bam_ps1 <- bam_chr1$`/mnt/bohacek/kathi/fromLiterature/ATAC_SE/aligned/ATACse_PRJNA399533_PachytenSpermatocytes_GSM2751129.bam`
+export(bam_ps1, "rds_saves/chr1_bams/bam_ps1.bam")
+bam_ps2 <- bam_chr1$`/mnt/bohacek/kathi/fromLiterature/ATAC_SE/aligned/ATACse_PRJNA399533_PachytenSpermatocytes_GSM2751130.bam`
+export(bam_ps2, "rds_saves/chr1_bams/bam_ps2.bam")
+
+bam_rs1 <- bam_chr1$`/mnt/bohacek/kathi/fromLiterature/ATAC_SE/aligned/ATACse_PRJNA399533_RoundSpermatides_GSM2751133.bam`
+export(bam_rs1, "rds_saves/chr1_bams/bam_rs1.bam")
+bam_rs2 <- bam_chr1$`/mnt/bohacek/kathi/fromLiterature/ATAC_SE/aligned/ATACse_PRJNA399533_RoundSpermatides_GSM2751134.bam`
+export(bam_rs2, "rds_saves/chr1_bams/bam_rs2.bam")
+
+bam_uds1 <- bam_chr1$`/mnt/bohacek/kathi/fromLiterature/ATAC_SE/aligned/ATACse_PRJNA399533_Thy1posSpermatogonia_GSM2751121.bam`
+export(bam_uds1, "rds_saves/chr1_bams/bam_uds1.bam")
+bam_uds2 <- bam_chr1$`/mnt/bohacek/kathi/fromLiterature/ATAC_SE/aligned/ATACse_PRJNA399533_Thy1posSpermatogonia_GSM2751122.bam`
+export(bam_uds2, "rds_saves/chr1_bams/bam_uds2.bam")
+```
+
+```{r peakoverlaps, results='hide', fig.cap="Overlap of peaks of the cell types across spermiogenesis"}
+peakfiles <- list.files("/mnt/bohacek/kathi/fromLiterature/ATAC_SE/peaks", pattern="broadPeak$", full=TRUE)
+names(peakfiles) <- gsub("\\_peaks.broadPeak","",c("ds1","ds2","ps1","ps2","rs1","rs2","uds1","uds2"))
+
+peaklist <- lapply(peakfiles, FUN=rtracklayer::import)
+merged_peaks <- reduce(unlist(GRangesList(peaklist)), with.revmap=TRUE)
+merged_peaks <- granges(merged_peaks[lengths(merged_peaks$revmap)>2]) 
+length(merged_peaks)
+regionOverlaps(peaklist)
+```
+
+The peaks seem to overlap quite nicely for samples of the same cell type. The difference between the cell types might be too big. Counting the number of  reads  in each peak for every sample.
+
+```{r counting, results='hide'}
+anno <- cbind(name=as.character(merged_peaks), as.data.frame(merged_peaks))
+anno$width <- NULL
+colnames(anno) <- c("GeneID", "Chr", "Start", "End", "Strand")
+
+bamfiles <- list.files("/mnt/bohacek/kathi/miriam/accessibility_sperm_embryo/rds_saves/chr1_bams/", pattern="bam$", full=TRUE)
+names(bamfiles) <- gsub("\\.bam","",c("ds1","ds2","ps1","ps2","rs1","rs2","uds1","uds2"))
+
+fc <- featureCounts( files=bamfiles,    
+                     isPairedEnd=FALSE,
+                     annot.ext=anno,    
+                     readExtension3=50, 
+                     nthreads=4         
+                    )
+
+se <- SummarizedExperiment( list(counts=fc$counts), rowRanges=merged_peaks)
+```
+```{r assay-se, class.source = "fold-show"}
+head(assay(se))
+```
+
+```{r MA-plot1, fig.cap="M-A plot of differentiating spermatogonia ds1 vs differentiating spermatogonia ds2"}
+se <- se[seqnames(se)=="1",] # se also needs to be subset to chr1
+edgeR::maPlot(assay(se)[,1], assay(se)[,2], lowess=TRUE, ylab="M (log2 foldchange)", 
+              xlab="A (mean log-count)", main="ds1 vs ds2"); abline(h=0, lty="dashed")
+```
+```{r MA-plot2, fig.cap="M-A plot of differentiating spermatogonia ds1 vs pachytene spermatocytes ps1"}
+edgeR::maPlot(assay(se)[,1], assay(se)[,3], lowess=TRUE, ylab="M (log2 foldchange)", 
+              xlab="A (mean log-count)", main="ds1 vs ps1"); abline(h=0, lty="dashed")
+```
+
+Testing whether the samples from 2 different cell types, ds1 and ps1, are unequally distributed
+
+```{r heatscatter, fig.cap="Scatterplot of differentiating spermatogonia ds1 vs pachytene spermatocytes ps1"}
+LSD::heatscatter(log1p(rowMeans(assay(se))), log1p(assay(se)[,1])-log1p(assay(se)[,2]), ylim=c(-1.5,1.5), xlim=c(2,7))
+```
+```{r, class.source = "fold-show"}
+colSums(assay(se))
+```
+
+Scatterplot slightly scewed to one side to to higher read count in one sample.
+
+```{r MA-plot3, fig.cap="M-A plot of differentiating spermatogonia ds1 vs pachytene spermatocytes ps2"}
+edgeR::maPlot(assay(se)[,1], assay(se)[,4], lowess=TRUE, ylab="M (log2 foldchange)", 
+              xlab="A (mean log-count)", main="ds1 vs ps2"); abline(h=0, lty="dashed")
+```
+```{r MA-plot4, fig.cap="M-A plot of differentiating spermatogonia ds1 vs round spermatids rs1"}
+edgeR::maPlot(assay(se)[,1], assay(se)[,5], lowess=TRUE, ylab="M (log2 foldchange)", 
+              xlab="A (mean log-count)", main="ds1 vs rs1"); abline(h=0, lty="dashed")
+```
+```{r MA-plot5, fig.cap="M-A plot of differentiating spermatogonia ds1 vs round spermatids rs2"}
+edgeR::maPlot(assay(se)[,1], assay(se)[,6], lowess=TRUE, ylab="M (log2 foldchange)", 
+              xlab="A (mean log-count)", main="ds1 vs rs2"); abline(h=0, lty="dashed")
+```
+```{r MA-plot6, fig.cap="M-A plot of differentiating spermatogonia ds1 vs undifferentiated spermatogonia uds1"}
+edgeR::maPlot(assay(se)[,1], assay(se)[,7], lowess=TRUE, ylab="M (log2 foldchange)", 
+              xlab="A (mean log-count)", main="ds1 vs uds1"); abline(h=0, lty="dashed")
+```
+```{r MA-plot7, fig.cap="M-A plot of differentiating spermatogonia ds1 vs undifferentiated spermatogonia uds2"}
+edgeR::maPlot(assay(se)[,1], assay(se)[,7], lowess=TRUE, ylab="M (log2 foldchange)", 
+              xlab="A (mean log-count)", main="ds1 vs uds2"); abline(h=0, lty="dashed")
+```
+
+Linear normalization should suffice due to how the samples vary between one cell type and across different cell types.
+Looking at the top 500 regions of the unnormalized data:
+
+```{r heatmap-before, fig.cap="Heatmap of first 500 regions of the samples"}
+se$cell_type <- c("ds", "ds", "ps", "ps", "rs", "rs", "uds", "uds")
+sechm(se, head(row.names(se),500), assayName="counts", do.scale = TRUE)
+```
+
+The observed difference between samples of the same cell type might be due to sequencing depth or other technical differences. 
+
+__TMM normalization__
+
+```{r norm-factors, class.source = "fold-show"}
+dds <- calcNormFactors(DGEList(assay(se)))
+dds$samples
+```
+```{r normalized-heatmap, fig.cap="TMM normalized heatmap of first 500 regions of the samples"}
+assays(se)$tmm.logcpm <- log1p(cpm(dds))
+sechm(se, head(row.names(se),500), assayName="tmm.logcpm", do.scale = TRUE)
+```
+
+TMM normalization makes samples consistent  within one cell type. 
+Unfortunately, .bam files are not available for all samples, so count based normalization based on .bam  files cannot be done.
+
+
+## Linear normalization 
+
+Assuming that the variance between samples of the same cell type and between samples of different cell types does not differ as shown with the count based M-A plots.
+
+```{r linear-normalization-plot, results='hide', fig.height=5, fig.width=15, fig.cap="Enriched heatmap of accessibility of male germline regions at mature sperm peaks with linear normalization, scaled 1/normalization factors"}
+allpeaks <- c(
+  "/mnt/bohacek/kathi/fromLiterature/ATAC_PE/peaks/ATAC_PRJNA480448_Sperm_GSM3262855_peaks.broadPeak",
+  "/mnt/bohacek/kathi/fromLiterature/ATAC_PE/peaks/ATAC_PRJNA480448_Sperm_GSM3262856_peaks.broadPeak",
+  "/mnt/bohacek/kathi/fromLiterature/ATAC_PE/peaks/ATAC_PRJNA315208_Sperm_GSM2088378_peaks.broadPeak",
+  "/mnt/bohacek/kathi/fromLiterature/ATAC_SE/peaks/ATACse_PRJNA399533_RoundSpermatides_GSM2751133_peaks.broadPeak",
+  "/mnt/bohacek/kathi/fromLiterature/ATAC_SE/peaks/ATACse_PRJNA399533_RoundSpermatides_GSM2751134_peaks.broadPeak",
+  "/mnt/bohacek/kathi/fromLiterature/ATAC_SE/peaks/ATACse_PRJNA399533_PachytenSpermatocytes_GSM2751129_peaks.broadPeak",
+  "/mnt/bohacek/kathi/fromLiterature/ATAC_SE/peaks/ATACse_PRJNA399533_PachytenSpermatocytes_GSM2751130_peaks.broadPeak",
+  "/mnt/bohacek/kathi/fromLiterature/ATAC_SE/peaks/ATACse_PRJNA399533_cKitposSpermatogonia_GSM2751125_peaks.broadPeak",
+  "/mnt/bohacek/kathi/fromLiterature/ATAC_SE/peaks/ATACse_PRJNA399533_cKitposSpermatogonia_GSM2751126_peaks.broadPeak",
+  "/mnt/bohacek/kathi/fromLiterature/ATAC_SE/peaks/ATACse_PRJNA399533_Thy1posSpermatogonia_GSM2751121_peaks.broadPeak",
+  "/mnt/bohacek/kathi/fromLiterature/ATAC_SE/peaks/ATACse_PRJNA399533_Thy1posSpermatogonia_GSM2751122_peaks.broadPeak"
+)
+peaklist <- lapply(allpeaks, FUN=rtracklayer::import)
+
+
+norm_factor <- bwNormFactors(x = tracks, peaks = peaklist, method = "MAnorm")
+norm_m <- rescaleSignalMatrices(m, scaleFactors = 1/norm_factor)
+plotEnrichedHeatmaps(norm_m, row_title="Peaks from sperm", trim = 0.99, raster_resize_mat = TRUE)
+```
+
+The signal intensity is slightly decreased for the sperm samples.
+
+Testing logarithmizing to improve the signal for the sperm samples:
+
+```{r linear-normalization-plot-log, fig.height=5, fig.width=15, fig.cap="Enriched heatmap of accessibility of male germline regions at mature sperm peaks with linear normalization, scaled 1/normalization factors, logarithmized"}
+plotEnrichedHeatmaps(lapply(norm_m,log1p), row_title="Peaks from sperm", trim = 0.99, raster_resize_mat = TRUE)
+```
+
+```{r linear-normalization-plot2, results='hide', fig.height=5, fig.width=15, fig.cap="Enriched heatmap of accessibility of male germline regions at mature sperm peaks with linear normalization, scaled by normalization factors"}
+norm2_m <- rescaleSignalMatrices(m, scaleFactors = norm_factor)
+plotEnrichedHeatmaps(norm2_m, row_title="Peaks from sperm", trim = 0.99, raster_resize_mat = TRUE)
+```
+
+The signal intensity is slightly increased for the sperm samples. 
+
+```{r linear-normalization-plot2-log, fig.height=5, fig.width=15, fig.cap="Enriched heatmap of accessibility of male germline regions at mature sperm peaks with linear normalization, scaled by normalization factors, logarithmized"}
+plotEnrichedHeatmaps(lapply(norm2_m,log1p), row_title="Peaks from sperm", trim = 0.99, raster_resize_mat = TRUE)
+```
+
+The signal intensity in the sperm samples is increased the most using 1/normalization factor to rescale the signal matrix, and logarithmizing the signal when generating the plot.
+
+
+# Conclusion
+
+The normalization used for downstream analysis is the linear normalization, using the normalization factors to rescale the matrices 1/normalization factor and logarithmizing the signal to plot the samples.
+
+
+```{r}
+saveRDS(norm_factor, "rds_saves/norm_factor.rds")
+```
+
+
+```{r}
+sessionInfo()
+```

@@ -1,0 +1,858 @@
+---
+title: "Sperm and embryo QC"
+author: "Miriam Kretschmer"
+date: "2/24/2022"
+output:
+  bookdown::html_document2:
+    code_folding: hide
+bibliography: citations.bib
+link-citations: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+```{r}
+#setwd("/mnt/bohacek/kathi/miriam/accessibilty_sperm_embryo")
+
+suppressPackageStartupMessages(library(magrittr))
+suppressPackageStartupMessages(library(universalmotif))
+suppressPackageStartupMessages(library(BSgenome))
+suppressPackageStartupMessages(library(memes))
+suppressPackageStartupMessages(library(ggbio))
+suppressPackageStartupMessages(library(Rsamtools))
+suppressPackageStartupMessages(library(GenomicRanges))
+suppressPackageStartupMessages(library(EnrichedHeatmap))
+suppressPackageStartupMessages(library(GenomicAlignments))
+suppressPackageStartupMessages(library(grid))
+suppressPackageStartupMessages(library(epiwraps))
+```
+
+
+# Introduction
+
+To assess the quality of single samples, consensus peaks of samples of the same cell type are generated. They are used to plot the regions per sample of one cell type against the consensus peaks of the same cell type. Consensus peaks are generated merging peaks of  multiple samples into one object, while keeping their number below 50k. This is to estimate the proportion of accessible sites in a cell type comparing the different samples and the overall quality of the samples for downstream use, namely to compare accessibility across cell types.
+
+
+
+# Embryonic cells
+
+The cell types assessed are embryos from early embryonic development, namely 1-cell embryos, early 2-cell embryos during minor zygotic genomic activation, 2-cell embryos during major zygotic genomic activation, 4-cell embryos, 8-cell embryos and murine embryonic stem cells, in short mESC.
+
+## 1-cell embryo
+
+The samples DNAse-seq are from [@Lu2016].
+
+```{r peaks-1-cell-embryo}
+peaks_embryo1cell1 <- import("/mnt/bohacek/kathi/fromLiterature/DNAse/peaks/DNAse_PRJNA308221_1cellE_GSM2029791_peaks.narrowPeak")
+peaks_embryo1cell2 <- import("/mnt/bohacek/kathi/fromLiterature/DNAse/peaks/DNAse_PRJNA308221_1cellE_GSM2029792_peaks.narrowPeak")
+
+
+allpeaks <- c(peaks_embryo1cell1, peaks_embryo1cell2)
+consensus.peaks <- reduce(allpeaks, with.revmap=TRUE)
+consensus.peaks <- consensus.peaks[lengths(consensus.peaks$revmap)>=2]
+```
+```{r, class.source = "fold-show"}
+length(consensus.peaks) #381 for >=2
+```
+
+```{r plot-1-cell-embryo, results='hide', fig.cap="Accessibility of 1-cell embryo at their peak regions"}
+tracks <- c(
+  embryo1cell1="/mnt/bohacek/kathi/fromLiterature/DNAse/tracks/DNAse_PRJNA308221_1cellE_GSM2029791.bw",
+  embryo1cell2="/mnt/bohacek/kathi/fromLiterature/DNAse/tracks/DNAse_PRJNA308221_1cellE_GSM2029792.bw")
+
+m <- signal2Matrix(tracks, consensus.peaks, w = 20, BPPARAM  = 2)
+saveRDS(m, "m_for_PL.rds")
+plotEnrichedHeatmaps(m, row_title="Peaks from consensus 1-cell embryos", trim = 0.99)
+```
+```{r length-1-cell-embryo, class.source = "fold-show"}
+length(peaks_embryo1cell1)
+length(peaks_embryo1cell2)
+```
+
+Quality of  1-cell embryos seems very  poor.
+
+
+
+## early 2-cell embryo
+
+The samples are ATAC-seq  from [@Wu2016]. Sample earlyembryo2cell1 and earlyembryo2cell2 are regular ATAC-seq of early 2-cell embryos, sample earlyembryo2cell3 is ATAC-seq of early 2-cell embryo with alpha amanitin treatment which blocks transcription.
+
+```{r peaks-early-2-cell-embryo}
+peaks_earlyembryo2cell1 <- import("/mnt/bohacek/kathi/fromLiterature/ATAC_PE_new/peaks/ATAC_PRJNA277362_early2-cell_GSM1933922_peaks.broadPeak")
+peaks_earlyembryo2cell2 <- import("/mnt/bohacek/kathi/fromLiterature/ATAC_PE_new/peaks/ATAC_PRJNA277362_early2-cell_GSM1933923_peaks.broadPeak")
+peaks_earlyembryo2cell3 <- import("/mnt/bohacek/kathi/fromLiterature/ATAC_PE_new/peaks/ATAC_PRJNA277362_early_peaks.broadPeak")
+peaks_earlyembryo2cell4 <- import("/mnt/bohacek/kathi/fromLiterature/ATAC_PE_new/peaks/ATAC_PRJNA277362_8-cell_GSM2108702_peaks.broadPeak")
+
+allpeaks <- c(peaks_earlyembryo2cell1, peaks_earlyembryo2cell2, peaks_earlyembryo2cell3, peaks_earlyembryo2cell4)
+consensus.peaks <- reduce(allpeaks, with.revmap=TRUE)
+consensus.peaks <- consensus.peaks[lengths(consensus.peaks$revmap)>=2]
+```
+```{r, class.source = "fold-show"}
+length(consensus.peaks) #7353 for >=2
+```
+
+```{r plot-early-2-cell-embryo, results='hide', fig.height=5, fig.width=15, fig.cap="Accessibility of early 2-cell embryos at their peak regions"}
+tracks <- c(
+  earlyembryo2cell1="/mnt/bohacek/kathi/fromLiterature/ATAC_PE_new/tracks/ATAC_PRJNA277362_early2-cell_GSM1933922.bw",
+  earlyembryo2cell2="/mnt/bohacek/kathi/fromLiterature/ATAC_PE_new/tracks/ATAC_PRJNA277362_early2-cell_GSM1933923.bw",
+  earlyembryo2cell3="/mnt/bohacek/kathi/fromLiterature/ATAC_PE_new/tracks/ATAC_PRJNA277362_early.bw",
+  earlyembryo2cell4="/mnt/bohacek/kathi/fromLiterature/ATAC_PE_new/tracks/ATAC_PRJNA277362_8-cell_GSM2108702.bw")
+
+m <- signal2Matrix(tracks, consensus.peaks, w = 20, BPPARAM  = 2)
+plotEnrichedHeatmaps(m, row_title="Peaks from early 2-cell embryos", trim = 0.99)
+```
+
+Quality of  early 2-cell embryos seems rather  poor. The authors admit they  "obtained generally weak and noisy ATAC-seq enrichment, and the detected peaks are reduced for both number and genome coverage compared to those at the 2-cell stage"[@Wu2016].
+
+
+Seperating the untreated from the alpha aminitin treated samples:
+
+### Untreated early 2-cell embryos:
+```{r peaks-untreated-early-2-cell-embryo}
+allpeaks <- c(peaks_earlyembryo2cell1, peaks_earlyembryo2cell2)
+consensus.peaks <- reduce(allpeaks, with.revmap=TRUE)
+consensus.peaks <- consensus.peaks[lengths(consensus.peaks$revmap)>=2]
+```
+```{r, class.source = "fold-show"}
+length(consensus.peaks) #532 for >=2
+```
+
+```{r plot-untreated-early-2-cell-embryo, results='hide', fig.cap="Accessibility of untreated early 2-cell embryos at their peak regions"}
+m <- signal2Matrix(tracks[1:2], consensus.peaks, w = 20, BPPARAM  = 2)
+plotEnrichedHeatmaps(m, row_title="Peaks from untreated early 2-cell embryos", trim = 0.99)
+```
+
+### Alpha aminitin treated early 2-cell embryos
+```{r peaks-treated-early-2-cell-embryo}
+allpeaks <- c(peaks_earlyembryo2cell3, peaks_earlyembryo2cell4)
+consensus.peaks <- reduce(allpeaks, with.revmap=TRUE)
+consensus.peaks <- consensus.peaks[lengths(consensus.peaks$revmap)>=2]
+```
+```{r, class.source = "fold-show"}
+length(consensus.peaks) #1111 for >=2
+```
+
+```{r plot-treated-early-2-cell-embryo, results='hide', fig.cap="Accessibility of alpha aminitin treated early 2-cell embryos at their peak regions"}
+m <- signal2Matrix(tracks[3:4], consensus.peaks, w = 20, BPPARAM  = 2)
+plotEnrichedHeatmaps(m, row_title="Peaks from alpha aminitin treated early 2-cell embryos", trim = 0.99)
+```
+
+Seperating treated and untreated samples does not seem to make a difference. More consensus peaks are found when combining all 4 samples.
+
+Testing if signal might be improved when taking all peaks:
+```{r peaks-all-early-2-cell-embryo}
+consensus.peaks <- reduce(allpeaks, with.revmap=TRUE)
+```
+```{r, class.source = "fold-show"}
+length(consensus.peaks) #57237
+```
+```{r plot-all-early-2-cell-embryo, results='hide', fig.height=5, fig.width=15, fig.cap="Accessibility of alpha aminitin treated early 2-cell embryos at their peak regions"}
+m <- signal2Matrix(tracks, consensus.peaks, w = 20, BPPARAM  = 2)
+plotEnrichedHeatmaps(m, row_title="Peaks from early 2-cell embryos", trim = 0.99, raster_resize_mat = TRUE)
+```
+
+
+
+## 2-cell embryo
+
+Samples embryo2cell1 and embryo2cell2 are ATAC-seq of 2-cell embryos from [@Wu2016]. Samples embryo2cell3 and embryo2cell4 are DNAse-seq 2-cell embryo from [@Lu2016].
+
+```{r peaks-2-cell-embryo}
+peaks_embryo2cell1 <- import("/mnt/bohacek/kathi/fromLiterature/ATAC_PE/peaks/ATAC_PRJNA277362_2cell_GSM1933924_peaks.broadPeak")
+peaks_embryo2cell2 <- import("/mnt/bohacek/kathi/fromLiterature/ATAC_PE/peaks/ATAC_PRJNA277362_2cell_GSM1933925_peaks.broadPeak")
+peaks_embryo2cell3 <- import("/mnt/bohacek/kathi/fromLiterature/DNAse/peaks/DNAse_PRJNA308221_2cellE_GSM2029793_peaks.narrowPeak")
+peaks_embryo2cell4 <- import("/mnt/bohacek/kathi/fromLiterature/DNAse/peaks/DNAse_PRJNA308221_2cellE_GSM2029794_peaks.narrowPeak")
+
+
+allpeaks <- c(peaks_embryo2cell1, peaks_embryo2cell2, peaks_embryo2cell3, peaks_embryo2cell4)
+consensus.peaks <- reduce(allpeaks, with.revmap=TRUE)
+consensus.peaks <- consensus.peaks[lengths(consensus.peaks$revmap)>=2]
+```
+```{r, class.source = "fold-show"}
+length(consensus.peaks) #904 for >=2
+```
+
+```{r plot-2-cell-embryo, results='hide', fig.height=5, fig.width=15, fig.cap="Accessibility of 2-cell embryos at their peak regions"}
+tracks <- c(
+  embryo2cell1="/mnt/bohacek/kathi/fromLiterature/ATAC_PE/tracks/ATAC_PRJNA277362_2cell_GSM1933924.bw",
+  embryo2cell2="/mnt/bohacek/kathi/fromLiterature/ATAC_PE/tracks/ATAC_PRJNA277362_2cell_GSM1933925.bw",
+  embryo2cell3="/mnt/bohacek/kathi/fromLiterature/DNAse/tracks/DNAse_PRJNA308221_2cellE_GSM2029793.bw",
+  embryo2cell4="/mnt/bohacek/kathi/fromLiterature/DNAse/tracks/DNAse_PRJNA308221_2cellE_GSM2029794.bw")
+
+m <- signal2Matrix(tracks, consensus.peaks, w = 20, BPPARAM  = 2)
+plotEnrichedHeatmaps(m, row_title="Peaks from 2-cell embryos", trim = 0.99)
+```
+
+Quality of  2-cell embryos seems very  poor. Samples embryo2cell3 and embryo2cell4 are slightly better than the others.
+
+Number of consensus peaks is quite low with `r length(consensus.peaks)`. 
+
+```{r length-2-cell-embryo, class.source = "fold-show"}
+length(peaks_embryo2cell1) #46
+length(peaks_embryo2cell2) #47
+length(peaks_embryo2cell3) #74228
+length(peaks_embryo2cell4) #1305
+```
+Only sample embryo2cell3 contains a sufficient, maybe even excessive number of  peaks with `r length(peaks_embryo2cell3)`.
+
+
+
+## 4-cell embryo
+
+Samples embryo4cell1-4 are ATAC-seq of 4-cell embryos from [@Wu2016]. Samples embryo4cell1-4 are the same ATAC-seq of 4-cell embryos from Wu et al. 2016, but re-preprocessed. Sample embryo4cell9 is DNAse-seq  from [@Lu2016].
+
+```{r peaks-4-cell-embryo}
+peaks_embryo4cell1 <- import("/mnt/bohacek/kathi/fromLiterature/ATAC_PE/peaks/ATAC_PRJNA277362_4cell_GSM1625847_peaks.broadPeak")
+peaks_embryo4cell2 <- import("/mnt/bohacek/kathi/fromLiterature/ATAC_PE/peaks/ATAC_PRJNA277362_4cell_GSM1933927_peaks.broadPeak")
+peaks_embryo4cell3 <- import("/mnt/bohacek/kathi/fromLiterature/ATAC_PE/peaks/ATAC_PRJNA277362_4cell_GSM2108703_peaks.broadPeak")
+peaks_embryo4cell4 <- import("/mnt/bohacek/kathi/fromLiterature/ATAC_PE/peaks/ATAC_PRJNA277362_4cell_GSM2108704_peaks.broadPeak")
+peaks_embryo4cell5 <- import("/mnt/bohacek/kathi/fromLiterature/ATAC_PE_new/peaks/ATAC_PRJNA277362_4-cell_GSM1625847_peaks.broadPeak")
+peaks_embryo4cell6 <- import("/mnt/bohacek/kathi/fromLiterature/ATAC_PE_new/peaks/ATAC_PRJNA277362_4-cell_GSM1933927_peaks.broadPeak")
+peaks_embryo4cell7 <- import("/mnt/bohacek/kathi/fromLiterature/ATAC_PE_new/peaks/ATAC_PRJNA277362_4-cell_GSM2108703_peaks.broadPeak")
+peaks_embryo4cell8 <- import("/mnt/bohacek/kathi/fromLiterature/ATAC_PE_new/peaks/ATAC_PRJNA277362_4-cell_GSM2108704_peaks.broadPeak")
+peaks_embryo4cell9 <- import("/mnt/bohacek/kathi/fromLiterature/DNAse/peaks/DNAse_PRJNA308221_4cellE_GSM2029796_peaks.narrowPeak")
+
+
+allpeaks <- c(peaks_embryo4cell1, peaks_embryo4cell2, peaks_embryo4cell3, peaks_embryo4cell4, peaks_embryo4cell5, peaks_embryo4cell6, peaks_embryo4cell7, 
+              peaks_embryo4cell8, peaks_embryo4cell9)
+consensus.peaks <- reduce(allpeaks, with.revmap=TRUE)
+consensus.peaks <- consensus.peaks[lengths(consensus.peaks$revmap)>=3]
+```
+```{r, class.source = "fold-show"}
+length(consensus.peaks) #27632 for >=3
+```
+
+```{r plot-4-cell-embryo, results='hide', fig.height=5, fig.width=30, fig.cap="Accessibility of 4-cell embryos at their peak regions"}
+tracks <- c(
+  embryo4cell1="/mnt/bohacek/kathi/fromLiterature/ATAC_PE/tracks/ATAC_PRJNA277362_4cell_GSM1625847.bw",
+  embryo4cell2="/mnt/bohacek/kathi/fromLiterature/ATAC_PE/tracks/ATAC_PRJNA277362_4cell_GSM1933927.bw",
+  embryo4cell3="/mnt/bohacek/kathi/fromLiterature/ATAC_PE/tracks/ATAC_PRJNA277362_4cell_GSM2108703.bw",
+  embryo4cell4="/mnt/bohacek/kathi/fromLiterature/ATAC_PE/tracks/ATAC_PRJNA277362_4cell_GSM2108704.bw",
+  embryo4cell5="/mnt/bohacek/kathi/fromLiterature/ATAC_PE_new/tracks/ATAC_PRJNA277362_4-cell_GSM1625847.bw",
+  embryo4cell6="/mnt/bohacek/kathi/fromLiterature/ATAC_PE_new/tracks/ATAC_PRJNA277362_4-cell_GSM1933927.bw",
+  embryo4cell7="/mnt/bohacek/kathi/fromLiterature/ATAC_PE_new/tracks/ATAC_PRJNA277362_4-cell_GSM2108703.bw",
+  embryo4cell8="/mnt/bohacek/kathi/fromLiterature/ATAC_PE_new/tracks/ATAC_PRJNA277362_4-cell_GSM2108704.bw",
+  embryo4cell9="/mnt/bohacek/kathi/fromLiterature/DNAse/tracks/DNAse_PRJNA308221_4cellE_GSM2029796.bw")
+
+m <- signal2Matrix(tracks, consensus.peaks, w = 20, BPPARAM  = 2)
+plotEnrichedHeatmaps(m, row_title="Peaks from 4-cell embryos", trim = 0.99, raster_resize_mat = TRUE)
+```
+
+4-cell embryo samples have mixed quality: samples embryo4cell1-embryo4cell4 plot nicer to their consensus peaks. DNAse samples embryo4cell8 and embryo4cell10 also show accessibility at the peaks, with the latter being slightly better.
+
+
+Seperating the re-preprocessed samples since they appear to be of lesser quality:
+
+### First set of ATAC-seq 4-cell embryo samples:
+```{r first-set-peaks-4-cell-embryo}
+allpeaks <- c(peaks_embryo4cell1, peaks_embryo4cell2, peaks_embryo4cell3, peaks_embryo4cell4)
+consensus.peaks <- reduce(allpeaks, with.revmap=TRUE)
+consensus.peaks <- consensus.peaks[lengths(consensus.peaks$revmap)>=2]
+```
+```{r, class.source = "fold-show"}
+length(consensus.peaks) #48 for >=2
+```
+
+```{r first-set-plot-4-cell-embryo, results='hide', fig.height=5, fig.width=15, fig.cap="Accessibility of first set of 4-cell embryos at their peak regions"}
+m <- signal2Matrix(tracks[1:4], consensus.peaks, w = 20, BPPARAM  = 2)
+plotEnrichedHeatmaps(m, row_title="Peaks from 4-cell embryos", trim = 0.99)
+```
+
+Using consensus peaks that appear in all 4 samples seems to give poor results. Testing whether using all peaks gives improvements:
+
+```{r first-set-length-4-cell-embryo, class.source = "fold-show"}
+consensus.peaks <- reduce(allpeaks, with.revmap=TRUE)
+length(consensus.peaks) #17223
+length(peaks_embryo4cell1) #3992
+length(peaks_embryo4cell2) #6
+length(peaks_embryo4cell3) #17
+length(peaks_embryo4cell4) #13272
+```
+There are very few peaks in samples embryo4cell2 and embryo4cell3.
+
+```{r first-set-all-peaks-plot-4-cell-embryo, results='hide', fig.height=5, fig.width=15, fig.cap="Accessibility of first set of 4-cell embryos at their peak regions"}
+m <- signal2Matrix(tracks[1:4], consensus.peaks, w = 20, BPPARAM  = 2)
+plotEnrichedHeatmaps(m, row_title="Peaks from first set of 4-cell embryos", trim = 0.98, raster_resize_mat = TRUE)
+```
+```{r overlaps-4-cell-embryo, class.source = "fold-show"}
+n <- overlapsAny(peaks_embryo4cell1,peaks_embryo4cell4)
+length(n[n==TRUE])
+```
+There are almost no overlaps between the two samples with the most peaks. Testing individual samples:
+```{r plot-individual-4-cell-embryo, results='hide', fig.cap="Accessibility of 4-cell embryos at peak regions of embryo4cell1"}
+m <- signal2Matrix(tracks[1:4], peaks_embryo4cell1, w = 20, BPPARAM = 2)
+n <- signal2Matrix(tracks[1:4], peaks_embryo4cell2, w = 20, BPPARAM = 2)
+o <- signal2Matrix(tracks[1:4], peaks_embryo4cell3, w = 20, BPPARAM = 2)
+p <- signal2Matrix(tracks[1:4], peaks_embryo4cell4, w = 20, BPPARAM = 2)
+p1 <- plotEnrichedHeatmaps(m, row_title="Peaks from embryo4cell1", trim = 0.99)
+```
+```{r, fig.cap="Accessibility of 4-cell embryos at peak regions of embryo4cell2"}
+p2 <- plotEnrichedHeatmaps(n, row_title="Peaks from embryo4cell2", trim = 0.99)
+```
+```{r, fig.cap="Accessibility of 4-cell embryos at peak regions of embryo4cell3"}
+p3 <- plotEnrichedHeatmaps(o, row_title="Peaks from embryo4cell3", trim = 0.99)
+```
+```{r, fig.cap="Accessibility of 4-cell embryos at peak regions of embryo4cell4"}
+p4 <- plotEnrichedHeatmaps(p, row_title="Peaks from embryo4cell4", trim = 0.99, raster_resize_mat = TRUE)
+```
+
+Samples embryo4cell1 and embryo4cell4 are the best among the first set of these ATAC-seq samples.
+
+
+### Re-preprocessed ATAC-seq samples of 4-cell embryos:
+```{r peaks-reprocessed-4-cell-embryo}
+allpeaks <- c( peaks_embryo4cell5, peaks_embryo4cell6, peaks_embryo4cell7, peaks_embryo4cell8)
+consensus.peaks <- reduce(allpeaks, with.revmap=TRUE)
+consensus.peaks <- consensus.peaks[lengths(consensus.peaks$revmap)>=2]
+```
+```{r, class.source = "fold-show"}
+length(consensus.peaks) #25482 for >=3, 45813 for >=2
+```
+
+```{r plot-reprocessed-4-cell-embryo, results='hide', fig.height=5, fig.width=15, fig.cap="Accessibility of re-preprocessed 4-cell embryos at their peak regions"}
+m <- signal2Matrix(tracks[5:8], consensus.peaks, w = 20, BPPARAM  = 2)
+plotEnrichedHeatmaps(m, row_title="Peaks from re-preprocessed 4-cell embryos", trim = 0.99, raster_resize_mat = TRUE)
+```
+```{r length-reprocessed 4-cell embryo, class.source = "fold-show"}
+length(peaks_embryo4cell5) #10176
+length(peaks_embryo4cell6) #36067
+length(peaks_embryo4cell7) #64966
+length(peaks_embryo4cell8) #55520
+```
+The re-preprocessed samples show a higher number of consensus peaks among the samples and also show a nice accessibility of their regions at their consensus peaks.
+
+
+
+## 8-cell embryo
+
+Samples embryo8cell1-4 are ATAC-seq of 4-cell embryos from [@Wu2016]. Samples embryo8cell3 and embryo8cell4 are re-preprocessed samples embryo8cell1 and embryo8cell2. Sample embryo8cell5 and embryo8cell6 is DNAse-seq  from [@Lu2016].
+
+```{r peaks-8-cell-embryo}
+peaks_embryo8cell1 <- import("/mnt/bohacek/kathi/fromLiterature/ATAC_PE/peaks/ATAC_PRJNA277362_8cell_GSM1933928_peaks.broadPeak")
+peaks_embryo8cell2 <- import("/mnt/bohacek/kathi/fromLiterature/ATAC_PE/peaks/ATAC_PRJNA277362_8cell_GSM1933929_peaks.broadPeak")
+peaks_embryo8cell3 <- import("/mnt/bohacek/kathi/fromLiterature/ATAC_PE_new/peaks/ATAC_PRJNA277362_8-cell_GSM1933928_peaks.broadPeak")
+peaks_embryo8cell4 <- import("/mnt/bohacek/kathi/fromLiterature/ATAC_PE_new/peaks/ATAC_PRJNA277362_8-cell_GSM1933929_peaks.broadPeak")
+peaks_embryo8cell5 <- import("/mnt/bohacek/kathi/fromLiterature/DNAse/peaks/DNAse_PRJNA308221_8cellE_GSM2029797_peaks.narrowPeak")
+peaks_embryo8cell6 <- import("/mnt/bohacek/kathi/fromLiterature/DNAse/peaks/DNAse_PRJNA308221_8cellE_GSM2029798_peaks.narrowPeak")
+
+
+allpeaks <- c(peaks_embryo8cell1, peaks_embryo8cell2, peaks_embryo8cell3, peaks_embryo8cell4, peaks_embryo8cell5, peaks_embryo8cell6)
+consensus.peaks <- reduce(allpeaks, with.revmap=TRUE)
+consensus.peaks <- consensus.peaks[lengths(consensus.peaks$revmap)>=2]
+```
+```{r, class.source = "fold-show"}
+length(consensus.peaks) #26379 for >=2
+```
+
+```{r plot-8-cell-embryo, results='hide', fig.height=5, fig.width=30, fig.cap="Accessibility of 8-cell embryos at their peak regions"}
+tracks <- c(
+  embryo8cell1="/mnt/bohacek/kathi/fromLiterature/ATAC_PE/tracks/ATAC_PRJNA277362_8cell_GSM1933928.bw",
+  embryo8cell2="/mnt/bohacek/kathi/fromLiterature/ATAC_PE/tracks/ATAC_PRJNA277362_8cell_GSM1933929.bw",
+  embryo8cell3="/mnt/bohacek/kathi/fromLiterature/ATAC_PE_new/tracks/ATAC_PRJNA277362_8-cell_GSM1933928.bw",
+  embryo8cell4="/mnt/bohacek/kathi/fromLiterature/ATAC_PE_new/tracks/ATAC_PRJNA277362_8-cell_GSM1933929.bw",
+  embryo8cell5="/mnt/bohacek/kathi/fromLiterature/DNAse/tracks/DNAse_PRJNA308221_8cellE_GSM2029797.bw",
+  embryo8cell6="/mnt/bohacek/kathi/fromLiterature/DNAse/tracks/DNAse_PRJNA308221_8cellE_GSM2029798.bw")
+
+m <- signal2Matrix(tracks, consensus.peaks, w = 20, BPPARAM  = 2)
+plotEnrichedHeatmaps(m, row_title="Peaks from 8-cell embryos", trim = 0.99, raster_resize_mat = TRUE)
+```
+
+8-cell embryo samples have mixed quality: sample embryo8cell2 plots well against the consensus peaks, while embryo8cell1, embryo8cell4 plot fairly well, whereas the two DNase samples embryo8cell5 and embryo8cell6 plot rather poor with offcenter peak of accessible sites.
+
+
+Seperating the re-preprocessed samples since they appear to be of lesser quality:
+
+### First set of ATAC-seq 8-cell embryo samples:
+```{r peaks-first-set-8-cell-embryo}
+allpeaks <- c(peaks_embryo8cell1, peaks_embryo8cell2)
+consensus.peaks <- reduce(allpeaks, with.revmap=TRUE)
+consensus.peaks <- consensus.peaks[lengths(consensus.peaks$revmap)>=2]
+```
+```{r, class.source = "fold-show"}
+length(consensus.peaks) #5
+```
+
+```{r plot-first-set-8-cell-embryo, results='hide', fig.cap="Accessibility of first set of 8-cell embryos at their peak regions"}
+m <- signal2Matrix(tracks[1:2], consensus.peaks, w = 20, BPPARAM  = 2)
+plotEnrichedHeatmaps(m, row_title="Peaks from 8-cell embryos", trim = 0.99)
+```
+
+Using consensus peaks that appear in both samples seems to give poor results. Testing whether using all peaks gives improvements:
+
+```{r first-set-length-8-cell-embryo, class.source = "fold-show"}
+consensus.peaks <- reduce(allpeaks, with.revmap=TRUE)
+length(consensus.peaks) #3774
+length(peaks_embryo8cell1) #25
+length(peaks_embryo8cell2) #3754
+```
+```{r plot-first-set-all-peaks-8-cell-embryo, results='hide', fig.cap="Accessibility of first set of 8-cell embryos at their peak regions"}
+m <- signal2Matrix(tracks[1:2], consensus.peaks, w = 20, BPPARAM  = 2)
+plotEnrichedHeatmaps(m, row_title="Peaks from 8-cell embryos", trim = 0.99)
+```
+
+
+There are quite few peaks in these samples. Testing the re-preprocessed samples:
+
+### Re-preprocessed ATAC-seq of 8-cell embryo samples:
+```{r peaks-reprocessed-8-cell-embryo, class.source = "fold-show"}
+allpeaks <- c(peaks_embryo8cell3, peaks_embryo8cell4)
+consensus.peaks <- reduce(allpeaks, with.revmap=TRUE)
+consensus.peaks <- consensus.peaks[lengths(consensus.peaks$revmap)>=2]
+length(consensus.peaks) #3641
+```
+
+```{r plot-reprocessed-8-cell-embryo, results='hide', fig.cap="Accessibility of reprocessed set of 8-cell embryos at their peak regions"}
+m <- signal2Matrix(tracks[3:4], consensus.peaks, w = 20, BPPARAM  = 2)
+plotEnrichedHeatmaps(m, row_title="Peaks from re-preprocessed 8-cell embryos", trim = 0.99)
+```
+
+The re-preprocessed samples show a higher number of consensus peaks among the samples and also show a nice accessibility of their regions at their consensus peaks.
+
+Nevertheless, the number of consensus peaks seems rather low `r length(consensus.peaks)`. Testing whether using all peaks gives improvements:
+
+```{r length-reprocessed-8-cell-embryo, class.source = "fold-show"}
+consensus.peaks <- reduce(allpeaks, with.revmap=TRUE)
+length(consensus.peaks) #56340
+length(peaks_embryo8cell3) #3963
+length(peaks_embryo8cell4) #56034
+```
+There are fewer peaks in one of the samples. Testing whether using all peaks gives improvements:
+
+```{r plot-all-peaks-8-cell-embryo, results='hide', fig.cap="Accessibility of reprocessed set of 8-cell embryos at their peak regions"}
+m <- signal2Matrix(tracks[3:4], consensus.peaks, w = 20, BPPARAM  = 2)
+plotEnrichedHeatmaps(m, row_title="Peaks from 8-cell embryos", trim = 0.99, raster_resize_mat = TRUE)
+```
+
+Using all peaks, not just ones that occur in both samples, seems to give better results. Testing if sample embryo8cell4 is the major contributor:
+
+```{r plot-individual-8-cell-embryo, results='hide', fig.cap="Accessibility of 8-cell embryos at peaks of embryo8cell3"}
+m <- signal2Matrix(tracks[3:4], peaks_embryo8cell3, w = 20, BPPARAM = 2)
+n <- signal2Matrix(tracks[3:4], peaks_embryo8cell4, w = 20, BPPARAM = 2)
+p1 <- plotEnrichedHeatmaps(m, row_title="Peaks from embryo8cell3", trim = 0.99, raster_resize_mat = TRUE)
+```
+```{r, fig.cap="Accessibility of 8-cell embryos at peak regions of embryo8cell4"}
+p2 <- plotEnrichedHeatmaps(n, row_title="Peaks from embryo8cell4", trim = 0.99, raster_resize_mat = TRUE)
+```
+
+Sample embryo8cell4 seems to have the large proportion of peaks and therefore is the sample to go with for downstream analysis.
+
+Testing to omit the first set of ATAC-seq samples:
+```{r peaks-without-first-set-8-cell-embryo}
+allpeaks <- c(peaks_embryo8cell3, peaks_embryo8cell4, peaks_embryo8cell5, peaks_embryo8cell6)
+consensus.peaks <- reduce(allpeaks, with.revmap=TRUE)
+consensus.peaks <- consensus.peaks[lengths(consensus.peaks$revmap)>=2]
+```
+```{r, class.source = "fold-show"}
+length(consensus.peaks) #25639 for >=2
+```
+
+```{r plot-without-first-set-8-cell-embryo, results='hide', fig.height=5, fig.width=15, fig.cap="Accessibility of 8-cell embryos without first set at their peak regions"}
+m <- signal2Matrix(tracks[3:6], consensus.peaks, w = 20, BPPARAM  = 2)
+plotEnrichedHeatmaps(m, row_title="Peaks from 8-cell embryos", trim = 0.98, raster_resize_mat = TRUE)
+```
+
+Samples embryo8cell4-6 display sufficient accessibility of their regions  at their peaks.
+
+
+
+## mESC
+
+Sample mESC1 is ATAC-seq from [@Maza2015]. Sample mESC2 is  a 30-cell mESC DNAse-seq sample from [@Lu2016], sample mESC3 is a 100-cell mESC DNAse-seq sample from [@Lu2016].
+
+```{r peaks-mESC-embryo}
+peaks_mESC1 <- import("/mnt/bohacek/kathi/fromLiterature/ATAC_PE_new/peaks/GSM1644021.mESC_peaks.broadPeak")
+peaks_mESC2 <- import("/mnt/bohacek/kathi/fromLiterature/DNAse/peaks/DNAse_PRJNA308221_mESCs_GSM2029801_peaks.narrowPeak")
+peaks_mESC3 <- import("/mnt/bohacek/kathi/fromLiterature/DNAse/peaks/DNAse_PRJNA308221_mESCs_GSM2029802_peaks.narrowPeak")
+
+allpeaks <- c(peaks_mESC1, peaks_mESC2, peaks_mESC3)
+consensus.peaks <- reduce(allpeaks, with.revmap=TRUE)
+consensus.peaks <- consensus.peaks[lengths(consensus.peaks$revmap)>=2]
+```
+```{r, class.source = "fold-show"}
+length(consensus.peaks) #39124 for >=2
+```
+
+```{r plot-mESC-embryo, results='hide', fig.height=5, fig.width=15, fig.cap="Accessibility of of mESCs at their peak regions"}
+tracks <- c(
+  mESC1="/mnt/bohacek/kathi/fromLiterature/ATAC_PE_new/tracks/GSM1644021.mESC.bw",
+  mESC2="/mnt/bohacek/kathi/fromLiterature/DNAse/tracks/DNAse_PRJNA308221_mESCs_GSM2029801.bw",
+  mESC3="/mnt/bohacek/kathi/fromLiterature/DNAse/tracks/DNAse_PRJNA308221_mESCs_GSM2029802.bw")
+
+m <- signal2Matrix(tracks, consensus.peaks, w = 20, BPPARAM  = 2)
+plotEnrichedHeatmaps(m, row_title="Peaks from mESCs", raster_resize_mat = TRUE, top_annotation = FALSE)
+```
+
+All mESC samples show regions accessible at the consensus peaks. DNAse samples mESC2 and mESC3 display an off-centered peak of accessible regions.
+
+
+
+# Female germline
+
+The cell types assessed include mature meiose II stage oocytes (MII oocytes) and immature geminal vesicle oocytes (GV oocytes).
+
+## MII oocytes
+
+Samples are ATAC-seq from [@Jung2019].
+
+```{r peaks-mIIoocyte}
+peaks_mIIoocyte1 <- import("/mnt/bohacek/kathi/fromLiterature/ATAC_PE/peaks/ATAC_PRJNA480448_MIIoocyte_GSM3262863_peaks.broadPeak")
+peaks_mIIoocyte2 <- import("/mnt/bohacek/kathi/fromLiterature/ATAC_PE/peaks/ATAC_PRJNA480448_MIIoocyte_GSM3262864_peaks.broadPeak")
+
+
+allpeaks <- c(peaks_mIIoocyte1, peaks_mIIoocyte2)
+consensus.peaks <- reduce(allpeaks, with.revmap=TRUE)
+consensus.peaks <- consensus.peaks[lengths(consensus.peaks$revmap)>=2]
+```
+```{r, class.source = "fold-show"}
+length(consensus.peaks) #39 for >=2
+```
+
+```{r plot-mIIoocyte, results='hide', fig.cap="Accessibility of MII oocytes at their peak regions"}
+tracks <- c(
+  mIIoocyte1="/mnt/bohacek/kathi/fromLiterature/ATAC_PE/tracks/ATAC_PRJNA480448_MIIoocyte_GSM3262863.bw",
+  mIIoocyte2="/mnt/bohacek/kathi/fromLiterature/ATAC_PE/tracks/ATAC_PRJNA480448_MIIoocyte_GSM3262864.bw")
+
+m <- signal2Matrix(tracks, consensus.peaks, w = 20, BPPARAM  = 2)
+plotEnrichedHeatmaps(m, row_title="Peaks from MII oocytes", trim = 0.99)
+```
+
+Using consensus peaks that appear in both samples seems to give poor results. The number of consensus peaks seems rather low with `r length(consensus.peaks)`. Testing whether using all peaks gives improvements:
+
+```{r length-mIIoocyte, class.source = "fold-show"}
+consensus.peaks <- reduce(allpeaks, with.revmap=TRUE)
+length(consensus.peaks) #37763
+```
+
+```{r plot-all-peaks-mIIoocyte, results='hide', fig.cap="Accessibility of MII oocytes at their peak regions"}
+m <- signal2Matrix(tracks, consensus.peaks, w = 20, BPPARAM  = 2)
+plotEnrichedHeatmaps(m, row_title="Peaks from MII oocytes", trim = 0.99, raster_resize_mat = TRUE)
+```
+
+Using all peaks, not just ones that occur in both samples, seems to give better results. Testing if sample mIIoocyte1 is the major contributor:
+
+```{r plot-individual-mIIoocyte, results='hide', fig.cap="Accessibility of MII oocytes at peak regions of mIIoocyte1"}
+m <- signal2Matrix(tracks, peaks_mIIoocyte1, w = 20, BPPARAM = 2)
+n <- signal2Matrix(tracks, peaks_mIIoocyte2, w = 20, BPPARAM = 2)
+p1 <- plotEnrichedHeatmaps(m, row_title="Peaks from mIIoocyte1", trim = 0.99, raster_resize_mat = TRUE)
+```
+```{r, fig.cap="Accessibility of MII oocytes at peak regions of mIIoocyte2"}
+p2 <- plotEnrichedHeatmaps(n, row_title="Peaks from mIIoocyte2", trim = 0.99, raster_resize_mat = TRUE)
+```
+
+```{r length-individual-mIIoocyte, class.source = "fold-show"}
+length(peaks_mIIoocyte1)
+length(peaks_mIIoocyte2)
+```
+Sample mIIoocyte1 seems to have the large proportion of peaks with `r length(peaks_mIIoocyte1)` peaks and therefore is the sample to go with for downstream analysis.
+
+
+
+## GV oocyte
+
+Samples are DNAse-seq from [@Lu2016].
+
+```{r peaks-GVoocyte}
+peaks_GVoocyte1 <- import("/mnt/bohacek/kathi/fromLiterature/DNAse/peaks/DNAse_PRJNA308221_OocyteGV_GSM2183029_peaks.narrowPeak")
+peaks_GVoocyte2 <- import("/mnt/bohacek/kathi/fromLiterature/DNAse/peaks/DNAse_PRJNA308221_OocyteGV_GSM2183030_peaks.narrowPeak")
+
+
+allpeaks <- c(peaks_GVoocyte1, peaks_GVoocyte2)
+consensus.peaks <- reduce(allpeaks, with.revmap=TRUE)
+consensus.peaks <- consensus.peaks[lengths(consensus.peaks$revmap)>=2]
+```
+```{r, class.source = "fold-show"}
+length(consensus.peaks) #597 for >=2
+```
+
+```{r plot-GVoocyte, results='hide', fig.cap="Accessibility of GV oocytes at their peak regions"}
+tracks <- c(
+  GVoocyte1="/mnt/bohacek/kathi/fromLiterature/DNAse/tracks/DNAse_PRJNA308221_OocyteGV_GSM2183029.bw",
+  GVoocyte2="/mnt/bohacek/kathi/fromLiterature/DNAse/tracks/DNAse_PRJNA308221_OocyteGV_GSM2183030.bw")
+
+m <- signal2Matrix(tracks, consensus.peaks, w = 20, BPPARAM  = 2)
+plotEnrichedHeatmaps(m, row_title="Peaks from GV oocytes", trim = 0.99)
+```  
+
+Using consensus peaks that appear in both samples seems to give poor results. The number of consensus peaks seems rather low with `r length(consensus.peaks)`. Testing whether using all peaks gives improvements:
+
+```{r length-GVoocyte, class.source = "fold-show"}
+consensus.peaks <- reduce(allpeaks, with.revmap=TRUE)
+length(consensus.peaks) #2154
+```
+
+```{r plot-all-peaks-GVoocyte, results='hide', fig.cap="Accessibility of GV oocytes at their peak regions"}
+m <- signal2Matrix(tracks, consensus.peaks, w = 20, BPPARAM  = 2)
+plotEnrichedHeatmaps(m, row_title="Peaks from GV oocytes", trim = 0.99)
+```
+
+Using all peaks, not just ones that occur in both samples, seems to give slightly better results. Testing peaks of individual samples:
+
+```{r plot-indidvidual-GVoocyte, results='hide', fig.cap="Accessibility of GV oocytes at peak regions of GVoocyte1"}
+m <- signal2Matrix(tracks, peaks_GVoocyte1, w = 20, BPPARAM = 2)
+n <- signal2Matrix(tracks, peaks_GVoocyte2, w = 20, BPPARAM = 2)
+p1 <- plotEnrichedHeatmaps(m, row_title="Peaks from GV oocyte1", trim = 0.99)
+```
+```{r, fig.cap="Accessibility of GV oocytes at peak regions of GVoocyte2"}
+p2 <- plotEnrichedHeatmaps(n, row_title="Peaks from GV oocyte2", trim = 0.99)
+```
+
+```{r length-individual-GVoocyte, class.source = "fold-show"}
+length(peaks_GVoocyte1)
+length(peaks_GVoocyte2)
+```
+Both samples have an rather low number of peaks with `r length(peaks_GVoocyte1)` and `r length(peaks_GVoocyte2)`.
+
+
+
+# Male germline 
+
+The samples assessed include mature spermatozoa and cells of different stages during spermatogenesis. The cell types, in order of progressing immaturity, are haploid round spermatids, diploid pachytene spermatocytes, diploid differentiating Kit+ spermatogonia and diploid undifferentiated Thy1+ spermatogonia.
+
+## Sperm
+
+The samples sperm1 and sperm2 are ATAC-seq from [@Jung2019], the samples sperm3, sperm4 and sperm5 are ATAC-seq from [@Jung2017], and samples sperm6 and sperm7 DANse-seq are from [@Lu2016].
+
+```{r peaks-sperm}
+peaks_sperm1 <- import("/mnt/bohacek/kathi/fromLiterature/ATAC_PE/peaks/ATAC_PRJNA480448_Sperm_GSM3262855_peaks.broadPeak")
+peaks_sperm2 <- import("/mnt/bohacek/kathi/fromLiterature/ATAC_PE/peaks/ATAC_PRJNA480448_Sperm_GSM3262856_peaks.broadPeak")
+peaks_sperm3 <- import("/mnt/bohacek/kathi/fromLiterature/ATAC_PE/peaks/ATAC_PRJNA315208_Sperm_GSM2088376_peaks.broadPeak")
+peaks_sperm4 <- import("/mnt/bohacek/kathi/fromLiterature/ATAC_PE/peaks/ATAC_PRJNA315208_Sperm_GSM2088377_peaks.broadPeak")
+peaks_sperm5 <- import("/mnt/bohacek/kathi/fromLiterature/ATAC_PE/peaks/ATAC_PRJNA315208_Sperm_GSM2088378_peaks.broadPeak")
+peaks_sperm6 <- import("/mnt/bohacek/kathi/fromLiterature/DNAse/peaks/DNAse_PRJNA308221_Sperm_GSM2183031_peaks.narrowPeak")
+peaks_sperm7 <- import("/mnt/bohacek/kathi/fromLiterature/DNAse/peaks/DNAse_PRJNA308221_Sperm_GSM2183032_peaks.narrowPeak")
+
+allpeaks <- c(peaks_sperm1, peaks_sperm2, peaks_sperm3, peaks_sperm4, peaks_sperm5, peaks_sperm6, peaks_sperm7)
+consensus.peaks <- reduce(allpeaks, with.revmap=TRUE)
+consensus.peaks <- consensus.peaks[lengths(consensus.peaks$revmap)>=3]
+#saveRDS(consensus.peaks, "rds_saves/sperm_consensus_peaks.rds")
+```
+```{r, class.source = "fold-show"}
+length(consensus.peaks) #22856
+```
+
+```{r plot-sperm, results='hide', fig.height=5, fig.width=30, fig.cap="Accessibility of sperm at their peak regions"}
+tracks <- c(
+  sperm1="/mnt/bohacek/kathi/fromLiterature/ATAC_PE/tracks/ATAC_PRJNA480448_Sperm_GSM3262855.bw",
+  sperm2="/mnt/bohacek/kathi/fromLiterature/ATAC_PE/tracks/ATAC_PRJNA480448_Sperm_GSM3262856.bw",
+  sperm3="/mnt/bohacek/kathi/fromLiterature/ATAC_PE/tracks/ATAC_PRJNA315208_Sperm_GSM2088376.bw",
+  sperm4="/mnt/bohacek/kathi/fromLiterature/ATAC_PE/tracks/ATAC_PRJNA315208_Sperm_GSM2088377.bw",
+  sperm5="/mnt/bohacek/kathi/fromLiterature/ATAC_PE/tracks/ATAC_PRJNA315208_Sperm_GSM2088378.bw",
+  sperm6="/mnt/bohacek/kathi/fromLiterature/DNAse/tracks/DNAse_PRJNA308221_Sperm_GSM2183031.bw",
+  sperm7="/mnt/bohacek/kathi/fromLiterature/DNAse/tracks/DNAse_PRJNA308221_Sperm_GSM2183032.bw")
+
+m <- signal2Matrix(tracks, consensus.peaks, w = 20, BPPARAM  = 2)
+#saveRDS(m,"rds_saves/data_sperm_QC.rds")
+
+plotEnrichedHeatmaps(m, row_title="Peaks from sperm", trim = 0.98, raster_resize_mat = TRUE)
+```
+
+Sperm samples plot fairly well across the board. DNAse sample sperm6 and sperm7 show a big off-centered peak.
+
+```{r length-sperm, class.source = "fold-show"}
+length(peaks_sperm1)
+length(peaks_sperm2)
+length(peaks_sperm3)
+length(peaks_sperm4)
+length(peaks_sperm5)
+length(peaks_sperm6)
+length(peaks_sperm7)
+```
+DNAse-seq samples sperm6 and sperm7 have low number of peaks.
+
+
+
+## Round spermatids
+
+The samples rs1 and rs2 are ATAC-seq from [@Maezawa2017].
+
+```{r peaks-rs}
+peaks_rs1 <- import("/mnt/bohacek/kathi/fromLiterature/ATAC_SE/peaks/ATACse_PRJNA399533_RoundSpermatides_GSM2751133_peaks.broadPeak")
+peaks_rs2 <- import("/mnt/bohacek/kathi/fromLiterature/ATAC_SE/peaks/ATACse_PRJNA399533_RoundSpermatides_GSM2751134_peaks.broadPeak")
+allpeaks <- c(peaks_rs1, peaks_rs2)
+consensus.peaks <- reduce(allpeaks, with.revmap=TRUE)
+consensus.peaks <- consensus.peaks[lengths(consensus.peaks$revmap)>=2]
+#saveRDS(consensus.peaks, "rds_saves/rs_consensus_peaks.rds")
+```
+```{r, class.source = "fold-show"}
+length(consensus.peaks) #20682
+```
+
+```{r plot-rs, results='hide', fig.cap="Accessibility of round spermatids at their peak regions"}
+tracks <- c(
+  "round_spermatids1"="/mnt/bohacek/kathi/fromLiterature/ATAC_SE/tracks/ATACse_PRJNA399533_RoundSpermatides_GSM2751133.bw",
+  "round_spermatids2"="/mnt/bohacek/kathi/fromLiterature/ATAC_SE/tracks/ATACse_PRJNA399533_RoundSpermatides_GSM2751134.bw")
+
+m <- signal2Matrix(tracks, consensus.peaks, w = 20, BPPARAM = 2)
+plotEnrichedHeatmaps(m, row_title="Peaks from round spermatids", trim = 0.99, raster_resize_mat = TRUE)
+```
+
+Both samples for round spermatids show nice accessibility of their regions around the consensus peaks.
+
+
+
+## Pachetene spermatocytes
+
+The samples ps1 and ps2 are ATAC-seq from [@Maezawa2017].
+
+```{r peaks-ps}
+peaks_ps1 <- import("/mnt/bohacek/kathi/fromLiterature/ATAC_SE/peaks/ATACse_PRJNA399533_PachytenSpermatocytes_GSM2751129_peaks.broadPeak")
+peaks_ps2 <- import("/mnt/bohacek/kathi/fromLiterature/ATAC_SE/peaks/ATACse_PRJNA399533_PachytenSpermatocytes_GSM2751130_peaks.broadPeak")
+allpeaks <- c(peaks_ps1, peaks_ps2)
+consensus.peaks <- reduce(allpeaks, with.revmap=TRUE)
+consensus.peaks <- consensus.peaks[lengths(consensus.peaks$revmap)>=2]
+#saveRDS(consensus.peaks, "rds_saves/ps_consensus_peaks.rds")
+```
+```{r, class.source = "fold-show"}
+length(consensus.peaks) #21577
+```
+
+```{r plot-ps, results='hide', fig.cap="Accessibility of pachytene spermatocytes at their peak regions"}
+tracks <- c(
+  "pachytene_spermatocytes1"="/mnt/bohacek/kathi/fromLiterature/ATAC_SE/tracks/ATACse_PRJNA399533_PachytenSpermatocytes_GSM2751129.bw",
+  "pachytene_spermatocytes2"="/mnt/bohacek/kathi/fromLiterature/ATAC_SE/tracks/ATACse_PRJNA399533_PachytenSpermatocytes_GSM2751130.bw")
+
+m <- signal2Matrix(tracks, consensus.peaks, w = 20, BPPARAM = 2)
+plotEnrichedHeatmaps(m, row_title="Peaks from pachytene spermatocytes", trim = 0.99, raster_resize_mat = TRUE)
+```
+
+Both samples for pachytene spermatocytes show nice accessibility of their regions around the consensus peaks.
+
+
+
+## Differentiating Kit+ spermatogonia
+
+The samples ds1 and ds2 are ATAC-seq from [@Maezawa2017].
+
+```{r peaks-ds}
+peaks_ds1 <- import("/mnt/bohacek/kathi/fromLiterature/ATAC_SE/peaks/ATACse_PRJNA399533_cKitposSpermatogonia_GSM2751125_peaks.broadPeak")
+peaks_ds2 <- import("/mnt/bohacek/kathi/fromLiterature/ATAC_SE/peaks/ATACse_PRJNA399533_cKitposSpermatogonia_GSM2751126_peaks.broadPeak")
+allpeaks <- c(peaks_ds1, peaks_ds2)
+consensus.peaks <- reduce(allpeaks, with.revmap=TRUE)
+consensus.peaks <- consensus.peaks[lengths(consensus.peaks$revmap)>=2]
+#saveRDS(consensus.peaks, "rds_saves/ds_consensus_peaks.rds")
+```
+```{r, class.source = "fold-show"}
+length(consensus.peaks) #29906
+```
+
+```{r plot-ds, results='hide', fig.cap="Accessibility of differentiating spermatogonia at their peak regions"}
+tracks <- c(
+  "differentiating_spermatogonia1"="/mnt/bohacek/kathi/fromLiterature/ATAC_SE/tracks/ATACse_PRJNA399533_cKitposSpermatogonia_GSM2751125.bw",
+  "differentiating_spermatogonia2"="/mnt/bohacek/kathi/fromLiterature/ATAC_SE/tracks/ATACse_PRJNA399533_cKitposSpermatogonia_GSM2751126.bw")
+
+m <- signal2Matrix(tracks, consensus.peaks, w = 20, BPPARAM = 2)
+plotEnrichedHeatmaps(m, row_title="Peaks from differentiating spermatogonia", trim = 0.99, raster_resize_mat = TRUE)
+```
+
+Both samples for differentiating Kit+ spermatogonia show nice accessibility of their regions around the consensus peaks.
+
+
+
+## Undifferentiated Thy1+ spermatogonia
+
+The samples uds1 and uds2 are ATAC-seq from [@Maezawa2017].
+
+```{r peaks-uds}
+peaks_uds1 <- import("/mnt/bohacek/kathi/fromLiterature/ATAC_SE/peaks/ATACse_PRJNA399533_Thy1posSpermatogonia_GSM2751121_peaks.broadPeak")
+peaks_uds2 <- import("/mnt/bohacek/kathi/fromLiterature/ATAC_SE/peaks/ATACse_PRJNA399533_Thy1posSpermatogonia_GSM2751122_peaks.broadPeak")
+allpeaks <- c(peaks_uds1, peaks_uds2)
+consensus.peaks <- reduce(allpeaks, with.revmap=TRUE)
+consensus.peaks <- consensus.peaks[lengths(consensus.peaks$revmap)>=2]
+#saveRDS(consensus.peaks, "rds_saves/uds_consensus_peaks.rds")
+```
+```{r, class.source = "fold-show"}
+length(consensus.peaks) #56774
+```
+
+```{r plot-uds, results='hide', fig.cap="Accessibility of undifferentiated spermatogonia at their peak regions"}
+tracks <- c(
+  "undifferentiated_spermatogonia1"="/mnt/bohacek/kathi/fromLiterature/ATAC_SE/tracks/ATACse_PRJNA399533_Thy1posSpermatogonia_GSM2751121.bw",
+  "undifferentiated_spermatogonia2"="/mnt/bohacek/kathi/fromLiterature/ATAC_SE/tracks/ATACse_PRJNA399533_Thy1posSpermatogonia_GSM2751122.bw")
+
+m <- signal2Matrix(tracks, consensus.peaks, w = 20, BPPARAM = 2)
+plotEnrichedHeatmaps(m, row_title="Peaks from undifferentiated spermatogonia", trim = 0.99, raster_resize_mat = TRUE)
+```
+
+Both samples for undifferentiating Thy1+ spermatogonia show nice accessibility of their regions around the consensus peaks.
+
+
+The pattern for all spermatogenic cells looks really similar. Testing whether they show differentially accessible regions when plotted against the peaks of undifferentiated Thy1+ spermatogonia:
+
+```{r plot-spermatogenesis, results='hide', fig.height=5, fig.width=30, fig.cap="Accessibility of sperm, round spermatids, pachyetene spermatocytes, differentieting spermatogonia and undifferentiated spermatogonia at peak regions of undifferentiated spermatogonia"}
+tracks <- c(
+  "round_spermatids1"="/mnt/bohacek/kathi/fromLiterature/ATAC_SE/tracks/ATACse_PRJNA399533_RoundSpermatides_GSM2751133.bw",
+  "round_spermatids2"="/mnt/bohacek/kathi/fromLiterature/ATAC_SE/tracks/ATACse_PRJNA399533_RoundSpermatides_GSM2751134.bw",
+  "pachytene_spermatocytes1"="/mnt/bohacek/kathi/fromLiterature/ATAC_SE/tracks/ATACse_PRJNA399533_PachytenSpermatocytes_GSM2751129.bw",
+  "pachytene_spermatocytes2"="/mnt/bohacek/kathi/fromLiterature/ATAC_SE/tracks/ATACse_PRJNA399533_PachytenSpermatocytes_GSM2751130.bw",
+  "differentiating_spermatogonia1"="/mnt/bohacek/kathi/fromLiterature/ATAC_SE/tracks/ATACse_PRJNA399533_cKitposSpermatogonia_GSM2751125.bw",
+  "differentiating_spermatogonia2"="/mnt/bohacek/kathi/fromLiterature/ATAC_SE/tracks/ATACse_PRJNA399533_cKitposSpermatogonia_GSM2751126.bw",
+  "undifferentiating_spermatogonia1"="/mnt/bohacek/kathi/fromLiterature/ATAC_SE/tracks/ATACse_PRJNA399533_Thy1posSpermatogonia_GSM2751121.bw",
+  "undifferentiating_spermatogonia2"="/mnt/bohacek/kathi/fromLiterature/ATAC_SE/tracks/ATACse_PRJNA399533_Thy1posSpermatogonia_GSM2751122.bw")
+
+m <- signal2Matrix(tracks, consensus.peaks, w = 20, BPPARAM = 2)
+plotEnrichedHeatmaps(m, row_title="Peaks from undifferentiated spermatogonia", trim = 0.99, raster_resize_mat = TRUE)
+```
+
+Samples seem to have different portions of accessible regions for peaks of undifferentiated Thy1+ spermatogonia. Since all developing cell types are derived from one source publication, there might be a batch effect leading to the smaller peak in the second sample for each cell type.
+
+
+# Conclusions
+
+| Based on this QC, the following samples have been elected for downstream analysis:
+
+| __Embryonic cells__:
+|   __1-cell embryos__
+|   - embryo1cell1
+|   - embryo1cell2 (though both are rather poor)
+|   __early 2-cell embryos__
+|   - earlyembryo2cell1
+|   - earlyembryo2cell2
+|   - earlyembryo2cell3
+|   - earlyembryo2cell4 (though all 4  are rather poor)
+|   __2-cell embryos__
+|   - embryo2cell3
+|   __4-cell embryos__
+|   - embryo4cell1
+|   - embryo4cell4
+|   __8-cell embryos__
+|   - embryo8cell3
+|   - embryo8cell4
+|   __mESCs__
+|   - mESC1
+|   - mESC2
+|   - mESC3
+  
+| __Maternal lineage__:
+|   __MII oocytes__
+|   - mIIoocyte1
+|   __GV oocytes__
+|   - GVoocyte1
+|   - GVoocyte2 (though both are rather poor)
+  
+| __Paternal lineage__:
+|   __Sperm__
+|   - sperm1
+|   - sperm2
+|   - sperm5
+|   __Round spermatids__
+|   - rs1
+|   - rs2
+|   __Pachytene spermatocytes__
+|   - ps1
+|   - ps2
+|   __differentiating spermatogonia__
+|   - ds1
+|   - ds2
+|   __undifferentiated spermatogonia__
+|   - uds1
+|   - uds2
+
+
+
+```{r}
+sessionInfo()
+```
+
+# References

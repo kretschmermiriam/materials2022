@@ -1,0 +1,483 @@
+---
+title: "Male and female germline peaks"
+author: "Miriam Kretschmer"
+date: "5/9/2022"
+output:
+  bookdown::html_document2:
+    code_folding: hide
+bibliography: citations.bib
+link-citations: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+```{r}
+#setwd("/mnt/bohacek/kathi/miriam/accessibilty_sperm_embryo")
+
+suppressPackageStartupMessages(library(magrittr))
+suppressPackageStartupMessages(library(universalmotif))
+suppressPackageStartupMessages(library(BSgenome))
+suppressPackageStartupMessages(library(memes))
+suppressPackageStartupMessages(library(ggbio))
+suppressPackageStartupMessages(library(Rsamtools))
+suppressPackageStartupMessages(library(GenomicRanges))
+suppressPackageStartupMessages(library(EnrichedHeatmap))
+suppressPackageStartupMessages(library(GenomicAlignments))
+suppressPackageStartupMessages(library(AnnotationHub))
+suppressPackageStartupMessages(library(grid))
+suppressPackageStartupMessages(library(epiwraps))
+ah <- AnnotationHub()
+```
+
+
+
+# Introduction
+
+Using the samples with good quality as assessed in "Sperm and embryo QC.Rmd" to produce consensus peaks for downstream analysis. Further, peaks will be filtered to extract all peaks that contain at least one GRE motif. The glucocorticoid receptor response element, in short GRE, is the DNA sequence to which the glucocorticoid receptor can bind directly to regulate gene expression. Previous results by Pierre-Luc Germain have shown that the GRE  is the most enriched motif in accessible sites in sperm.
+
+
+# GRE motif
+```{r GRE-motif, cache=TRUE, fig.cap="GRE motif"}
+query(ah, pattern=c("GRCm39", "dna_sm"))$ah_id[[1]]
+genome <- ah[["AH90965"]]
+
+GRE_motif <- MotifDb::MotifDb %>% 
+  MotifDb::query("GRE") %>% 
+  universalmotif::convert_motifs() %>% 
+  .[[1]]
+png("plots/GRE_motif.png", width = 1024)
+a <- view_motifs(GRE_motif, use.type = "PPM")
+print(a)
+dev.off()
+print(a)
+```
+
+
+
+# Generating consensus peaks
+
+## Female germline
+
+### MIIoocytes
+
+__Peaks containing GRE__
+
+```{r GRE-peaks-mIIoocyte}
+peaks <- import("/mnt/bohacek/kathi/fromLiterature/ATAC_PE/peaks/ATAC_PRJNA480448_MIIoocyte_GSM3262863_peaks.broadPeak")
+peak_seqs <- get_sequence(peaks, genome)
+fimo <- runFimo(peak_seqs, GRE_motif, meme_path = "/common/meme/bin")
+GRE_peaks <- peaks[overlapsAny(peaks, fimo)]
+saveRDS(GRE_peaks, "rds_saves/peaks/peaks_with_GRE_mIIoocytes.rds")
+```
+```{r number-peaks-mIIoocyte, results='hide'}
+length(fimo)
+sum(overlapsAny(peaks, fimo))
+```
+
+There are `r length(fimo)` GRE sites in all peaks. There are `r sum(overlapsAny(peaks, fimo))` peaks that contain at least one GRE site.
+
+```{r plot-MIIoocyte, results='hide', fig.cap="Accessibility of MII oocytes at peak regions containing GRE"}
+tracks <- c(
+  mIIoocyte1="/mnt/bohacek/kathi/fromLiterature/ATAC_PE/tracks/ATAC_PRJNA480448_MIIoocyte_GSM3262863.bw",
+  mIIoocyte2="/mnt/bohacek/kathi/fromLiterature/ATAC_PE/tracks/ATAC_PRJNA480448_MIIoocyte_GSM3262864.bw"
+)
+m <- signal2Matrix(tracks, GRE_peaks, w = 20, BPPARAM = 2)
+plotEnrichedHeatmaps(m, row_title="Peaks from MIIoocytes containing GRE", trim = 0.99)
+```
+
+### GV  oocytes
+
+__Consensus peaks__
+
+```{r consensus-peaks-GVoocytes}
+peaks1 <- import("/mnt/bohacek/kathi/fromLiterature/DNAse/peaks/DNAse_PRJNA308221_OocyteGV_GSM2183029_peaks.narrowPeak")
+peaks2 <- import("/mnt/bohacek/kathi/fromLiterature/DNAse/peaks/DNAse_PRJNA308221_OocyteGV_GSM2183030_peaks.narrowPeak")
+
+
+allpeaks <- c(peaks1, peaks2)
+peaks <- reduce(allpeaks, with.revmap=TRUE)
+saveRDS(peaks, "rds_saves/peaks/consensus.peaks_GVoocytes.rds")
+```
+
+__Peaks containing GRE__
+
+```{r GRE-peaks-GVoocyte, results='hide'}
+peak_seqs <- get_sequence(peaks, genome)
+fimo <- runFimo(peak_seqs, GRE_motif, meme_path = "/common/meme/bin")
+GRE_peaks <- peaks[overlapsAny(peaks, fimo)]
+saveRDS(GRE_peaks, "rds_saves/peaks/peaks_with_GRE_GVoocytes.rds")
+length(fimo)
+sum(overlapsAny(peaks, fimo))
+```
+
+There are `r length(fimo)` GRE sites in all peaks. There are `r sum(overlapsAny(peaks, fimo))` peaks that contain at least one GRE site.
+
+```{r plot-GVoocyte, results='hide', fig.cap="Accessibility of GV oocytes at peak regions containing GRE"}
+tracks <- c(
+  GVoocyte1="/mnt/bohacek/kathi/fromLiterature/DNAse/tracks/DNAse_PRJNA308221_OocyteGV_GSM2183029.bw",
+  GVoocyte2="/mnt/bohacek/kathi/fromLiterature/DNAse/tracks/DNAse_PRJNA308221_OocyteGV_GSM2183030.bw"
+)
+m <- signal2Matrix(tracks, GRE_peaks, w = 20, BPPARAM = 2)
+plotEnrichedHeatmaps(m, row_title="Peaks from GVoocytes containing GRE", trim = 0.99)
+```
+
+
+## Male germline
+
+### Mature sperm
+
+__Consensus peaks__
+
+```{r consensus-peaks-sperm, results='hide'}
+peaks1 <- import("/mnt/bohacek/kathi/fromLiterature/ATAC_PE/peaks/ATAC_PRJNA480448_Sperm_GSM3262855_peaks.broadPeak")
+peaks2 <- import("/mnt/bohacek/kathi/fromLiterature/ATAC_PE/peaks/ATAC_PRJNA480448_Sperm_GSM3262856_peaks.broadPeak")
+peaks3 <- import("/mnt/bohacek/kathi/fromLiterature/ATAC_PE/peaks/ATAC_PRJNA315208_Sperm_GSM2088378_peaks.broadPeak")
+
+
+allpeaks <- c(peaks1, peaks2, peaks3)
+peaks <- reduce(allpeaks, with.revmap=TRUE)
+peaks <- peaks[lengths(peaks$revmap)>=2]
+length(peaks) #33883
+saveRDS(peaks, "rds_saves/peaks/consensus.peaks_sperm.rds")
+```
+
+__Peaks containing GRE__
+
+```{r GRE-peaks-sperm, results='hide'}
+peak_seqs <- get_sequence(peaks, genome)
+fimo <- runFimo(peak_seqs, GRE_motif, meme_path = "/common/meme/bin")
+GRE_peaks <- peaks[overlapsAny(peaks, fimo)]
+saveRDS(GRE_peaks, "rds_saves/peaks/peaks_with_GRE_sperm.rds")
+length(fimo)
+sum(overlapsAny(peaks, fimo))
+```
+
+There are `r length(fimo)` GRE sites in all peaks. There are `r sum(overlapsAny(peaks, fimo))` peaks that contain at least one GRE site.
+
+```{r plot-sperm, results='hide', fig.cap="Accessibility of sperm at peak regions containing GRE"}
+tracks <- c(
+  sperm1="/mnt/bohacek/kathi/fromLiterature/ATAC_PE/tracks/ATAC_PRJNA480448_Sperm_GSM3262855.bw",
+  sperm2="/mnt/bohacek/kathi/fromLiterature/ATAC_PE/tracks/ATAC_PRJNA480448_Sperm_GSM3262856.bw",
+  sperm3="/mnt/bohacek/kathi/fromLiterature/ATAC_PE/tracks/ATAC_PRJNA315208_Sperm_GSM2088378.bw"
+)
+m <- signal2Matrix(tracks, GRE_peaks, w = 20, BPPARAM = 2)
+plotEnrichedHeatmaps(m, row_title="Peaks from sperm containing GRE", trim = 0.99)
+```
+
+__Peaks containing GRE per sample__
+
+__sperm1__
+```{r peaks-sperm1, results='hide'}
+peaks <- peaks1
+peak_seqs <- get_sequence(peaks, genome)
+fimo <- runFimo(peak_seqs, GRE_motif, meme_path = "/common/meme/bin")
+GRE_peaks <- peaks[overlapsAny(peaks, fimo)]
+saveRDS(GRE_peaks, "rds_saves/peaks/peaks_with_GRE_sperm1.rds")
+length(fimo)
+sum(overlapsAny(peaks, fimo))
+```
+
+There are `r length(fimo)` GRE sites in peaks of the sample sperm1. There are `r sum(overlapsAny(peaks, fimo))` peaks that contain at least one GRE site. 
+
+__sperm2__
+```{r peaks-sperm2, results='hide'}
+peaks <- peaks2
+peak_seqs <- get_sequence(peaks, genome)
+fimo <- runFimo(peak_seqs, GRE_motif, meme_path = "/common/meme/bin")
+GRE_peaks <- peaks[overlapsAny(peaks, fimo)]
+saveRDS(GRE_peaks, "rds_saves/peaks/peaks_with_GRE_sperm2.rds")
+length(fimo)
+sum(overlapsAny(peaks, fimo))
+```
+
+There are `r length(fimo)` GRE sites in peaks of the sample sperm2. There are `r sum(overlapsAny(peaks, fimo))` peaks that contain at least one GRE site. 
+
+__sperm3__
+```{r peaks-sperm3, results='hide'}
+peaks <- peaks3
+peak_seqs <- get_sequence(peaks, genome)
+fimo <- runFimo(peak_seqs, GRE_motif, meme_path = "/common/meme/bin")
+GRE_peaks <- peaks[overlapsAny(peaks, fimo)]
+saveRDS(GRE_peaks, "rds_saves/peaks/peaks_with_GRE_sperm3.rds")
+length(fimo)
+sum(overlapsAny(peaks, fimo))
+```
+
+There are `r length(fimo)` GRE sites in peaks of the sample sperm3. There are `r sum(overlapsAny(peaks, fimo))` peaks that contain at least one GRE site. 
+
+
+
+### Round spermatids
+
+__Consensus peaks__
+
+```{r consensus-peaks-rs, results='hide'}
+peaks1 <- import("/mnt/bohacek/kathi/fromLiterature/ATAC_SE/peaks/ATACse_PRJNA399533_RoundSpermatides_GSM2751133_peaks.broadPeak")
+peaks2 <- import("/mnt/bohacek/kathi/fromLiterature/ATAC_SE/peaks/ATACse_PRJNA399533_RoundSpermatides_GSM2751134_peaks.broadPeak")
+
+allpeaks <- c(peaks1, peaks2)
+peaks <- reduce(allpeaks, with.revmap=TRUE)
+peaks <- peaks[lengths(peaks$revmap)>=2]
+length(peaks) #20682
+saveRDS(peaks, "rds_saves/peaks/consensus.peaks_rs.rds")
+```
+
+__Peaks containing GRE__
+
+```{r GRE-peaks-rs, results='hide'}
+peak_seqs <- get_sequence(peaks, genome)
+fimo <- runFimo(peak_seqs, GRE_motif, meme_path = "/common/meme/bin")
+GRE_peaks <- peaks[overlapsAny(peaks, fimo)]
+saveRDS(GRE_peaks, "rds_saves/peaks/peaks_with_GRE_rs.rds")
+length(fimo)
+sum(overlapsAny(peaks, fimo))
+```
+
+There are `r length(fimo)` GRE sites in all peaks. There are `r sum(overlapsAny(peaks, fimo))` peaks that contain at least one GRE site.
+
+```{r plot-rs, results='hide', fig.cap="Accessibility of round spermatids at peak regions containing GRE"}
+tracks <- c(
+  round_spermatids1="/mnt/bohacek/kathi/fromLiterature/ATAC_SE/tracks/ATACse_PRJNA399533_RoundSpermatides_GSM2751133.bw",
+  round_spermatids2="/mnt/bohacek/kathi/fromLiterature/ATAC_SE/tracks/ATACse_PRJNA399533_RoundSpermatides_GSM2751134.bw"
+)
+m <- signal2Matrix(tracks, GRE_peaks, w = 20, BPPARAM = 2)
+plotEnrichedHeatmaps(m, row_title="Peaks from round spermatids containing GRE", trim = 0.99)
+```
+
+__Peaks containing GRE per sample__
+
+__rs1__
+```{r rs-sperm1, results='hide'}
+peaks <- peaks1
+peak_seqs <- get_sequence(peaks, genome)
+fimo <- runFimo(peak_seqs, GRE_motif, meme_path = "/common/meme/bin")
+GRE_peaks <- peaks[overlapsAny(peaks, fimo)]
+saveRDS(GRE_peaks, "rds_saves/peaks/peaks_with_GRE_rs1.rds")
+length(fimo)
+sum(overlapsAny(peaks, fimo))
+```
+
+There are `r length(fimo)` GRE sites in peaks of the sample rs1. There are `r sum(overlapsAny(peaks, fimo))` peaks that contain at least one GRE site. 
+
+__rs2__
+```{r peaks-rs2, results='hide'}
+peaks <- peaks2
+peak_seqs <- get_sequence(peaks, genome)
+fimo <- runFimo(peak_seqs, GRE_motif, meme_path = "/common/meme/bin")
+GRE_peaks <- peaks[overlapsAny(peaks, fimo)]
+saveRDS(GRE_peaks, "rds_saves/peaks/peaks_with_GRE_rs2.rds")
+length(fimo)
+sum(overlapsAny(peaks, fimo))
+```
+
+There are `r length(fimo)` GRE sites in peaks of the sample rs2. There are `r sum(overlapsAny(peaks, fimo))` peaks that contain at least one GRE site. 
+
+
+
+### Pachytene spermatocytes
+
+__Consensus peaks__
+
+```{r consensus-peaks-ps, results='hide'}
+peaks1 <- import("/mnt/bohacek/kathi/fromLiterature/ATAC_SE/peaks/ATACse_PRJNA399533_PachytenSpermatocytes_GSM2751129_peaks.broadPeak")
+peaks2 <- import("/mnt/bohacek/kathi/fromLiterature/ATAC_SE/peaks/ATACse_PRJNA399533_PachytenSpermatocytes_GSM2751130_peaks.broadPeak")
+
+allpeaks <- c(peaks1, peaks2)
+peaks <- reduce(allpeaks, with.revmap=TRUE)
+peaks <- peaks[lengths(peaks$revmap)>=2]
+length(peaks) #21577
+saveRDS(peaks, "rds_saves/peaks/consensus.peaks_ps.rds")
+```
+
+__Peaks containing GRE__
+
+```{r GRE-peaks-ps, results='hide'}
+peak_seqs <- get_sequence(peaks, genome)
+fimo <- runFimo(peak_seqs, GRE_motif, meme_path = "/common/meme/bin")
+GRE_peaks <- peaks[overlapsAny(peaks, fimo)]
+saveRDS(GRE_peaks, "rds_saves/peaks/peaks_with_GRE_ps.rds")
+length(fimo)
+sum(overlapsAny(peaks, fimo))
+```
+
+There are `r length(fimo)` GRE sites in all peaks. There are `r sum(overlapsAny(peaks, fimo))` peaks that contain at least one GRE site.
+
+```{r plot-ps, results='hide', fig.cap="Accessibility of pachytene spermatocytes at peak regions containing GRE"}
+tracks <- c(
+  "pachytene_spermatocytes1"="/mnt/bohacek/kathi/fromLiterature/ATAC_SE/tracks/ATACse_PRJNA399533_PachytenSpermatocytes_GSM2751129.bw",
+  "pachytene_spermatocytes2"="/mnt/bohacek/kathi/fromLiterature/ATAC_SE/tracks/ATACse_PRJNA399533_PachytenSpermatocytes_GSM2751130.bw"
+)
+m <- signal2Matrix(tracks, GRE_peaks, w = 20, BPPARAM = 2)
+plotEnrichedHeatmaps(m, row_title="Peaks from pachytene spermatocytes containing GRE", trim = 0.99)
+```
+
+__Peaks containing GRE per sample__
+
+__ps1__
+```{r peaks-ps1, results='hide'}
+peaks <- peaks1
+peak_seqs <- get_sequence(peaks, genome)
+fimo <- runFimo(peak_seqs, GRE_motif, meme_path = "/common/meme/bin")
+GRE_peaks <- peaks[overlapsAny(peaks, fimo)]
+saveRDS(GRE_peaks, "rds_saves/peaks/peaks_with_GRE_ps1.rds")
+length(fimo)
+sum(overlapsAny(peaks, fimo))
+```
+
+There are `r length(fimo)` GRE sites in peaks of the sample ps1. There are `r sum(overlapsAny(peaks, fimo))` peaks that contain at least one GRE site. 
+
+__ps2__
+```{r peaks-ps2, results='hide'}
+peaks <- peaks2
+peak_seqs <- get_sequence(peaks, genome)
+fimo <- runFimo(peak_seqs, GRE_motif, meme_path = "/common/meme/bin")
+GRE_peaks <- peaks[overlapsAny(peaks, fimo)]
+saveRDS(GRE_peaks, "rds_saves/peaks/peaks_with_GRE_ps2.rds")
+length(fimo)
+sum(overlapsAny(peaks, fimo))
+```
+
+There are `r length(fimo)` GRE sites in peaks of the sample ps2. There are `r sum(overlapsAny(peaks, fimo))` peaks that contain at least one GRE site.
+
+
+
+### Differentiating spermatogonia
+
+__Consensus peaks__
+
+```{r consensus-peaks-ds, results='hide'}
+peaks1 <- import("/mnt/bohacek/kathi/fromLiterature/ATAC_SE/peaks/ATACse_PRJNA399533_cKitposSpermatogonia_GSM2751125_peaks.broadPeak")
+peaks2 <- import("/mnt/bohacek/kathi/fromLiterature/ATAC_SE/peaks/ATACse_PRJNA399533_cKitposSpermatogonia_GSM2751126_peaks.broadPeak")
+
+allpeaks <- c(peaks1, peaks2)
+peaks <- reduce(allpeaks, with.revmap=TRUE)
+peaks <- peaks[lengths(peaks$revmap)>=2]
+length(peaks) #29906
+saveRDS(peaks, "rds_saves/peaks/consensus.peaks_ds.rds")
+```
+
+__Peaks containing GRE__
+
+```{r GRE-peaks-ds, results='hide'}
+peak_seqs <- get_sequence(peaks, genome)
+fimo <- runFimo(peak_seqs, GRE_motif, meme_path = "/common/meme/bin")
+GRE_peaks <- peaks[overlapsAny(peaks, fimo)]
+saveRDS(GRE_peaks, "rds_saves/peaks/peaks_with_GRE_ds.rds")
+length(fimo)
+sum(overlapsAny(peaks, fimo))
+```
+
+There are `r length(fimo)` GRE sites in all peaks. There are `r sum(overlapsAny(peaks, fimo))` peaks that contain at least one GRE site.
+
+```{r plot-ds, results='hide', fig.cap="Accessibility of differentiating spermatogonia at peak regions containing GRE"}
+tracks <- c(
+  "differentiating_spermatogonia1"="/mnt/bohacek/kathi/fromLiterature/ATAC_SE/tracks/ATACse_PRJNA399533_cKitposSpermatogonia_GSM2751125.bw",
+  "differentiating_spermatogonia2"="/mnt/bohacek/kathi/fromLiterature/ATAC_SE/tracks/ATACse_PRJNA399533_cKitposSpermatogonia_GSM2751126.bw"
+)
+m <- signal2Matrix(tracks, GRE_peaks, w = 20, BPPARAM = 2)
+plotEnrichedHeatmaps(m, row_title="Peaks from differentiating spermatogonia containing GRE", trim = 0.99)
+```
+
+__Peaks containing GRE per sample__
+
+__ds1__
+```{r peaks-ds1, results='hide'}
+peaks <- peaks1
+peak_seqs <- get_sequence(peaks, genome)
+fimo <- runFimo(peak_seqs, GRE_motif, meme_path = "/common/meme/bin")
+GRE_peaks <- peaks[overlapsAny(peaks, fimo)]
+saveRDS(GRE_peaks, "rds_saves/peaks/peaks_with_GRE_ds1.rds")
+length(fimo)
+sum(overlapsAny(peaks, fimo))
+```
+
+There are `r length(fimo)` GRE sites in peaks of the sample ds1. There are `r sum(overlapsAny(peaks, fimo))` peaks that contain at least one GRE site. 
+
+__ds2__
+```{r peaks-ds2, results='hide'}
+peaks <- peaks2
+peak_seqs <- get_sequence(peaks, genome)
+fimo <- runFimo(peak_seqs, GRE_motif, meme_path = "/common/meme/bin")
+GRE_peaks <- peaks[overlapsAny(peaks, fimo)]
+saveRDS(GRE_peaks, "rds_saves/peaks/peaks_with_GRE_ds2.rds")
+length(fimo)
+sum(overlapsAny(peaks, fimo))
+```
+
+There are `r length(fimo)` GRE sites in peaks of the sample ds2. There are `r sum(overlapsAny(peaks, fimo))` peaks that contain at least one GRE site.
+
+
+
+### Undifferentiated spermatogonia
+
+__Consensus peaks__
+
+```{r consensus-peaks-uds, results='hide'}
+peaks1 <- import("/mnt/bohacek/kathi/fromLiterature/ATAC_SE/peaks/ATACse_PRJNA399533_Thy1posSpermatogonia_GSM2751121_peaks.broadPeak")
+peaks2 <- import("/mnt/bohacek/kathi/fromLiterature/ATAC_SE/peaks/ATACse_PRJNA399533_Thy1posSpermatogonia_GSM2751122_peaks.broadPeak")
+
+allpeaks <- c(peaks1, peaks2)
+peaks <- reduce(allpeaks, with.revmap=TRUE)
+peaks <- peaks[lengths(peaks$revmap)>=2]
+length(peaks) #56774
+saveRDS(peaks, "rds_saves/peaks/consensus.peaks_uds.rds")
+```
+
+__Peaks containing GRE__
+
+```{r GRE-peaks-uds, results='hide'}
+peak_seqs <- get_sequence(peaks, genome)
+fimo <- runFimo(peak_seqs, GRE_motif, meme_path = "/common/meme/bin")
+GRE_peaks <- peaks[overlapsAny(peaks, fimo)]
+saveRDS(GRE_peaks, "rds_saves/peaks/peaks_with_GRE_uds.rds")
+length(fimo)
+sum(overlapsAny(peaks, fimo))
+```
+
+There are `r length(fimo)` GRE sites in all peaks. There are `r sum(overlapsAny(peaks, fimo))` peaks that contain at least one GRE site.
+
+```{r plot-uds, results='hide', fig.cap="Accessibility of undifferentiated spermatogonia at peak regions containing GRE"}
+tracks <- c(
+  "undifferentiated_spermatogonia1"="/mnt/bohacek/kathi/fromLiterature/ATAC_SE/tracks/ATACse_PRJNA399533_Thy1posSpermatogonia_GSM2751121.bw",
+  "undifferentiated_spermatogonia2"="/mnt/bohacek/kathi/fromLiterature/ATAC_SE/tracks/ATACse_PRJNA399533_Thy1posSpermatogonia_GSM2751122.bw"
+)
+m <- signal2Matrix(tracks, GRE_peaks, w = 20, BPPARAM = 2)
+plotEnrichedHeatmaps(m, row_title="Peaks from undifferentiated spermatogonia containing GRE", trim = 0.99)
+```
+
+__Peaks containing GRE per sample__
+
+__uds1__
+```{r peaks-uds1, results='hide'}
+peaks <- peaks1
+peak_seqs <- get_sequence(peaks, genome)
+fimo <- runFimo(peak_seqs, GRE_motif, meme_path = "/common/meme/bin")
+GRE_peaks <- peaks[overlapsAny(peaks, fimo)]
+saveRDS(GRE_peaks, "rds_saves/peaks/peaks_with_GRE_uds1.rds")
+length(fimo)
+sum(overlapsAny(peaks, fimo))
+```
+
+There are `r length(fimo)` GRE sites in peaks of the sample uds1. There are `r sum(overlapsAny(peaks, fimo))` peaks that contain at least one GRE site. 
+
+__uds2__
+```{r peaks-uds2, results='hide'}
+peaks <- peaks2
+peak_seqs <- get_sequence(peaks, genome)
+fimo <- runFimo(peak_seqs, GRE_motif, meme_path = "/common/meme/bin")
+GRE_peaks <- peaks[overlapsAny(peaks, fimo)]
+saveRDS(GRE_peaks, "rds_saves/peaks/peaks_with_GRE_uds2.rds")
+length(fimo)
+sum(overlapsAny(peaks, fimo))
+```
+
+There are `r length(fimo)` GRE sites in peaks of the sample uds2. There are `r sum(overlapsAny(peaks, fimo))` peaks that contain at least one GRE site.
+
+
+```{r}
+sessionInfo()
+```
+
+# References
