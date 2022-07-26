@@ -1,0 +1,463 @@
+---
+title: "Data subsets"
+author: "Miriam Kretschmer"
+date: "7/5/2022"
+output:
+  bookdown::html_document2:
+    code_folding: hide
+bibliography: citations.bib
+link-citations: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+```{r}
+#setwd("/mnt/bohacek/kathi/miriam/accessibilty_sperm_embryo")
+
+suppressPackageStartupMessages(library(rtracklayer))
+suppressPackageStartupMessages(library(IRanges))
+suppressPackageStartupMessages(library(GenomicRanges))
+suppressPackageStartupMessages(library(tidyverse))
+suppressPackageStartupMessages(library(UpSetR))
+suppressPackageStartupMessages(library(epiwraps))
+```
+
+
+# Introduction
+
+To be able to make better conclusions on which sites in a cell type are also accessible in another cell type, data subsets will be created. For example, a subset will be created that contains regions that occur in sperm but not in the oocyte.
+
+# Overlapping regions
+
+```{r region-overlaps, results='hide', fig.cap="Overlapping regions of peaks of male and female germ cells"}
+peakfiles <- list.files("/mnt/bohacek/kathi/fromLiterature/ATAC_SE/peaks", pattern="broadPeak$", full=TRUE)
+names(peakfiles) <- gsub("\\_peaks.broadPeak","",c("ds1","ds2","ps1","ps2","rs1","rs2","uds1","uds2"))
+peakfiles2 <- c(sperm1="/mnt/bohacek/kathi/fromLiterature/ATAC_PE/peaks/ATAC_PRJNA480448_Sperm_GSM3262855_peaks.broadPeak",
+                sperm2="/mnt/bohacek/kathi/fromLiterature/ATAC_PE/peaks/ATAC_PRJNA480448_Sperm_GSM3262856_peaks.broadPeak",
+                sperm3="/mnt/bohacek/kathi/fromLiterature/ATAC_PE/peaks/ATAC_PRJNA315208_Sperm_GSM2088378_peaks.broadPeak",
+                MIIoocyte="/mnt/bohacek/kathi/fromLiterature/ATAC_PE/peaks/ATAC_PRJNA480448_MIIoocyte_GSM3262863_peaks.broadPeak",
+                GVoocyte1="/mnt/bohacek/kathi/fromLiterature/DNAse/peaks/DNAse_PRJNA308221_OocyteGV_GSM2183029_peaks.narrowPeak",
+                GVoocyte2="/mnt/bohacek/kathi/fromLiterature/DNAse/peaks/DNAse_PRJNA308221_OocyteGV_GSM2183030_peaks.narrowPeak"
+ )
+
+peaklist <- c(lapply(peakfiles, FUN=rtracklayer::import), lapply(peakfiles2, FUN=rtracklayer::import))
+regionOverlaps(peaklist,
+               main="Overlaps of regions in male and female germ cells")
+```
+
+This seems to be skewed due to the low number of peaks for the GVoocyte samples (Figure \@ref(fig:region-overlaps)). Plotting again without GVoocyte samples:
+
+```{r region-overlaps-noGVoocyte, fig.cap="Overlapping regions of peaks of male germ cells and MII stage oocytes"}
+regionOverlaps(peaklist[1:12],
+               main="Overlaps of regions in male and female germ cells")
+```
+
+Samples of the same cell type seem to overlap well with each other (Figure \@ref(fig:region-overlaps-noGVoocyte)). Samples for DS and UDS show high overlaps, as also seen in the enriched heatmaps of male germ cell accessibility at peak regions od DS (see Figure 3.4 in [Main - Accessibility across male and female germ cells.html][link1]). Similarly, samples for PS and RS show hgih overlaps with each other. The sperm samples curiously, after overlapping the most with each other, show the highest overlap with the MIIoocyte sample. Further, sperm samples overlap with immature male germ cells  with increasing immaturity, meaning the least overlap is with RS, which are the most mature after spermatozoa.
+
+Testing how the samples are overlapping when using consensus peaks:
+
+```{r overlaps-consensuspeaks, results='hide', fig.cap="Overlapping regions of consensus peaks containing of male germ cells and MII stage oocytes"}
+sperm <- readRDS("rds_saves/peaks/consensus_peaks/consensus.peaks_sperm.rds")
+rs <- readRDS("rds_saves/peaks/consensus_peaks/consensus.peaks_rs.rds")
+ps <- readRDS("rds_saves/peaks/consensus_peaks/consensus.peaks_ps.rds")
+ds <- readRDS("rds_saves/peaks/consensus_peaks/consensus.peaks_ds.rds")
+uds <- readRDS("rds_saves/peaks/consensus_peaks/consensus.peaks_uds.rds")
+MIIoocyte <- import("/mnt/bohacek/kathi/fromLiterature/ATAC_PE/peaks/ATAC_PRJNA480448_MIIoocyte_GSM3262863_peaks.broadPeak")
+
+peaklist <- c("sperm"=sperm, "rs"=rs, "ps"=ps, "ds"=ds, "uds"=uds, "MIIoocyte"=MIIoocyte)
+regionOverlaps(peaklist, 
+               main="Overlaps of regions in male and female germ cells")
+```
+UDS and  DS samples share the most overlaps, followed by a decrease of overlaps with increasing maturity levels of male germ cells (Figure \@ref(fig:overlaps-consensuspeaks)). Spermatozoa have increased overlaps with increasing immaturity, the least overlaps with MIIoocytes.
+
+
+Viewing the number of overlaps of one cell type with one or several others:
+
+```{r upset, results='hide', fig.height=5, fig.width=15, fig.cap="Overlaps of male and female germline peak regions"}
+regionUpset(peaklist, 
+            sets=c("sperm","rs","ps","ds","uds","MIIoocyte"), 
+            nintersects=NA,
+            empty.intersections = "on", 
+            order.by = "freq", 
+            keep.order = TRUE,
+            point.size = 1.1, 
+            line.size = 0.3,
+            mainbar.y.label = "Number of overlapping regions", 
+            sets.x.label = "Number of regions",
+            number.angles = 0,
+            mb.ratio = c(0.55, 0.45))
+```
+
+Most overlaps occur between UDS and DS, followed by overlaps between all cell types of both male and female germline (Figure \@ref(fig:upset)). Further, PS and RS show the next most overlaps. This is also reflected in  \@ref(fig:overlaps-consensuspeaks). Sperm has the most overlapping regions with UDS, then UDS, DS and MIIoocytes combined, then with all immature male germ cell types. Lower than that number are the overlapping regions of spermatozoa with MIIoocytes.
+
+```{r upset-list, results='hide'}
+upset_list <- regionUpset(peaklist, 
+            sets=c("sperm","rs","ps","ds","uds","MIIoocyte"), 
+            nintersects=NA,
+            empty.intersections = "on", 
+            order.by = "freq", 
+            keep.order = TRUE,
+            point.size = 1.1, 
+            line.size = 0.3,
+            mainbar.y.label = "Number of overlapping regions", 
+            sets.x.label = "Number of regions",
+            number.angles = 0,
+            mb.ratio = c(0.55, 0.45),
+            returnList = TRUE)
+```
+
+
+## Overlaps of GRE motif containing peak regions
+
+Testing how the samples are overlapping when using consensus peaks containing GRE:
+
+```{r overlaps-consensuspeaks-GRE, results='hide', fig.cap="Overlapping regions of consensus peaks containing the GRE motif of male germ cells and MII stage oocytes"}
+sperm_GRE <- readRDS("rds_saves/peaks/GRE_peaks/peaks_with_GRE_sperm.rds")
+rs_GRE <- readRDS("rds_saves/peaks/GRE_peaks/peaks_with_GRE_rs.rds")
+ps_GRE <- readRDS("rds_saves/peaks/GRE_peaks/peaks_with_GRE_ps.rds")
+ds_GRE <- readRDS("rds_saves/peaks/GRE_peaks/peaks_with_GRE_ds.rds")
+uds_GRE <- readRDS("rds_saves/peaks/GRE_peaks/peaks_with_GRE_uds.rds")
+MIIoocyte_GRE <- readRDS("rds_saves/peaks/GRE_peaks/peaks_with_GRE_mIIoocytes.rds")
+
+peaklist_GRE <- c("sperm_GRE"=sperm_GRE, "rs_GRE"=rs_GRE, "ps_GRE"=ps_GRE, "ds_GRE"=ds_GRE, "uds_GRE"=uds_GRE, "MIIoocyte_GRE"=MIIoocyte_GRE)
+regionOverlaps(peaklist_GRE,
+               main="Overlaps of regions containing GRE in male and female germ cells",
+               clustering_distance_rows = "euclidean",
+               clustering_distance_cols = "euclidean", 
+               clustering_method = "complete")
+```
+
+Overlaps in peaks containing GRE in the male germline decrease with increased maturity (Figure \@ref(fig:overlaps-consensuspeaks-GRE)). High overlaps can be observed for DS with UDS samples and RS with PS samples. Interestingly, more overlaps of the immature male germ cells can be observed with MIIoocytes than with mature spermatozoa. Peak regions containing GRE of spermatozoa overlap the most with MIoocytes.
+
+
+Viewing the number of overlaps of regions containing GRE in one cell type with one or several others:
+
+```{r upset-GRE, results='hide', fig.height=5, fig.width=15, fig.cap="Overlaps of male and female germline peak regions containing the GRE motif"}
+regionUpset(peaklist_GRE, 
+            sets=c("sperm_GRE","rs_GRE","ps_GRE","ds_GRE","uds_GRE","MIIoocyte_GRE"), 
+            nintersects=NA,
+            empty.intersections = "on", 
+            order.by = "freq", 
+            keep.order = TRUE,
+            point.size = 1.1, 
+            line.size = 0.3,
+            mainbar.y.label = "Number of overlapping regions", 
+            sets.x.label = "Number of regions",
+            number.angles = 0,
+            mb.ratio = c(0.55, 0.45))
+```
+
+Similar to the general peaks, peak regions containing the GRE motif show the most overlapping regions between UDS and DS (Figure \@ref(fig:upset-GRE)), followed by overlaps of UDS and spermatozoa, and DS and UDS with spermatozoa. Here, the number of overlaps between male germ cells is higher than the overlap between all male and female germ cells.
+
+```{r upset_list_GRE}
+upset_list_GRE <- regionUpset(peaklist_GRE, 
+            sets=c("sperm_GRE","rs_GRE","ps_GRE","ds_GRE","uds_GRE","MIIoocyte_GRE"), 
+            nintersects=NA,
+            empty.intersections = "on", 
+            order.by = "freq", 
+            keep.order = TRUE,
+            point.size = 1.1, 
+            line.size = 0.3,
+            mainbar.y.label = "Number of overlapping regions", 
+            sets.x.label = "Number of regions",
+            number.angles = 0,
+            mb.ratio = c(0.55, 0.45),
+            returnList = TRUE)
+```
+
+
+
+# Creating subsets
+
+Based on the top results of the analysis of overlapping regions (Figures \@ref(fig:upset), \@ref(fig:upset-GRE)), subsets of peak regions are created.
+
+## Asymmetric overlaps
+
+Producing peaks where peaks of one cell type are queried for overlaps with peak regions of a second cell type.
+
+```{r subsets-asymmetric}
+#dir.create("rds_saves/peaks/subsets")
+dir.create("rds_saves/peaks/subsets/GRE")
+dir.create("rds_saves/peaks/subsets/consensus")
+
+peaklist <- c("sperm"=sperm, "rs"=rs, "ps"=ps, "ds"=ds, "uds"=uds, "MIIoocyte"=MIIoocyte) 
+for(i in names(peaklist)){
+  for(y in names(peaklist)){
+    p1 <- peaklist[[i]]
+    o <- p1[overlapsAny(p1,peaklist[[y]])]
+    saveRDS(o, file=paste0("rds_saves/peaks/subsets/consensus/overlaps_",i,"_",y,".rds"))
+  }
+}
+```
+
+### GRE motif containing consensus peaks
+
+```{r subsets-asymmetric-GRE}
+peaklist <- c("sperm_GRE"=sperm_GRE, "rs_GRE"=rs_GRE, "ps_GRE"=ps_GRE, "ds_GRE"=ds_GRE, "uds_GRE"=uds_GRE, "MIIoocyte_GRE"=MIIoocyte_GRE) 
+for(i in names(peaklist)){
+  for(y in names(peaklist)){
+    p1 <- peaklist[[i]]
+    o <- p1[overlapsAny(p1,peaklist[[y]])]
+    saveRDS(o, file=paste0("rds_saves/peaks/subsets/GRE/overlaps_",i,"_",y,".rds"))
+  }
+}
+```
+
+
+
+## Symmetric overlaps
+
+```{r subsets-symmetric-GRE}
+dir.create("rds_saves/peaks/subsets/consensus/intersects")
+peaklist <- c("sperm"=sperm, "rs"=rs, "ps"=ps, "ds"=ds, "uds"=uds, "MIIoocyte"=MIIoocyte)
+
+for(i in names(peaklist)){
+  for(y in names(peaklist)){
+    p1 <- peaklist[[i]]
+    p2 <- peaklist[[y]]
+    o <- IRanges::intersect(p1,p2)
+    saveRDS(o, file=paste0("rds_saves/peaks/subsets/consensus/intersects/intersects_",i,"_",y,".rds"))
+  }
+}
+```
+
+### GRE motif containing consensus peaks
+
+```{r subsets-symmetric}
+dir.create("rds_saves/peaks/subsets/GRE/intersects")
+peaklist <- c("sperm_GRE"=sperm_GRE, "rs_GRE"=rs_GRE, "ps_GRE"=ps_GRE, "ds_GRE"=ds_GRE, "uds_GRE"=uds_GRE, "MIIoocyte_GRE"=MIIoocyte_GRE)
+
+for(i in names(peaklist)){
+  for(y in names(peaklist)){
+    p1 <- peaklist[[i]]
+    p2 <- peaklist[[y]]
+    o <- IRanges::intersect(p1,p2)
+    saveRDS(o, file=paste0("rds_saves/peaks/subsets/GRE/intersects/intersects_",i,"_",y,".rds"))
+  }
+}
+```
+
+
+## Further
+
+__Regions in sperm accessible in sperm, but not the oocyte__
+
+```{r, results='hide'}
+o <- overlapsAny(sperm, MIIoocyte)
+o <- sperm[o==FALSE]
+saveRDS(o, "rds_saves/peaks/subsets/consensus/overlaps_sperm_not_MIIoocyte.rds")
+length(o)
+```
+
+Out of `r length(sperm)` accessible regions in sperm, there are `r length(o)` regions accessible in sperm, that are not accessible in the oocyte.
+
+__Regions in sperm not accessible in sperm, but in the oocyte__
+
+```{r, results='hide'}
+o <- sperm[overlapsAny(sperm,MIIoocyte)]
+saveRDS(o, "rds_saves/peaks/subsets/consensus/overlaps_not_sperm_but_MIIoocyte.rds")
+length(o)
+```
+
+Out of `r length(sperm)` accessible regions in sperm, there are `r length(o)` regions not accessible in sperm, that are accessible in the oocyte.
+
+__Regions in sperm accessible in sperm, but not rs__
+
+```{r, results='hide'}
+o <- overlapsAny(sperm, rs)
+o <- sperm[o==FALSE]
+saveRDS(o, "rds_saves/peaks/subsets/consensus/overlaps_sperm_not_rs.rds")
+length(o)
+```
+
+Out of `r length(sperm)` accessible regions in sperm, there are `r length(o)` regions accessible in sperm, that are not accessible in rs.
+
+__Regions in sperm not accessible in sperm, but in rs__
+
+```{r, results='hide'}
+o <- sperm[overlapsAny(sperm,rs)]
+saveRDS(o, "rds_saves/peaks/subsets/consensus/overlaps_not_sperm_but_rs.rds")
+length(o)
+```
+
+Out of `r length(sperm)` accessible regions in sperm, there are `r length(o)` regions not accessible in sperm, that are accessible in the rs.
+
+
+
+
+
+
+### Further but with GRE peaks
+
+#### Oocytes
+
+__Regions in sperm accessible in sperm containing GRE, but not the oocyte__
+
+```{r}
+o <- overlapsAny(sperm_GRE, MIIoocyte_GRE)
+o <- sperm_GRE[o==FALSE]
+saveRDS(o, "rds_saves/peaks/subsets/GRE/overlaps_spermGRE_not_MIIoocyteGRE.rds")
+length(o)
+```
+
+Out of `r length(sperm_GRE)` accessible regions in sperm containing GRE, there are `r length(o)` regions accessible in sperm containing GRE, that are not accessible in the oocyte.
+
+__Regions in sperm not accessible in sperm containing GRE, but in the oocyte__????
+
+```{r}
+o <- sperm_GRE[overlapsAny(sperm_GRE,MIIoocyte_GRE)]
+saveRDS(o, "rds_saves/peaks/subsets/GRE/overlaps_not_spermGRE_but_MIIoocyteGRE.rds")
+length(o)
+```
+
+Out of `r length(sperm_GRE)` accessible regions in sperm containing GRE, there are `r length(o)` regions not accessible in sperm containing GRE, that are accessible in the oocyte.
+
+
+__Regions in MIIoocytes accessible in MIIoocytes containing GRE, but not sperm__
+
+```{r}
+o <- overlapsAny(MIIoocyte_GRE, sperm_GRE)
+o <- MIIoocyte_GRE[o==FALSE]
+saveRDS(o, "rds_saves/peaks/subsets/GRE/overlaps_MIIoocyteGRE_not_spermGRE.rds")
+length(o)
+```
+
+Out of `r length(sperm_GRE)` accessible regions in MIIoocyte containing GRE, there are `r length(o)` regions accessible in sperm containing GRE, that are not accessible in sperm.
+
+
+
+#### RS
+
+__Regions in sperm accessible in sperm containing GRE, but not rs__
+
+```{r, results='hide'}
+o <- overlapsAny(sperm_GRE, rs_GRE)
+o <- sperm_GRE[o==FALSE]
+saveRDS(o, "rds_saves/peaks/subsets/GRE/overlaps_spermGRE_not_rsGRE.rds")
+length(o)
+```
+
+Out of `r length(sperm_GRE)` accessible regions in sperm containing GRE, there are `r length(o)` regions accessible in sperm containing GRE, that are not accessible in rs.
+
+__Regions in sperm not accessible in sperm containing GRE, but in rs__?????
+
+```{r, results='hide'}
+o <- sperm_GRE[overlapsAny(sperm_GRE,rs_GRE)]
+saveRDS(o, "rds_saves/peaks/subsets/GRE/overlaps_not_spermGRE_but_rsGRE.rds")
+length(o)
+```
+
+Out of `r length(sperm_GRE)` accessible regions in sperm containing GRE, there are `r length(o)` regions not accessible in sperm containing GRE, that are accessible in the rs.
+
+
+__Regions in round spermatids accessible in round spermatids containing GRE, but not sperm__
+
+```{r}
+o <- overlapsAny(rs_GRE, sperm_GRE)
+o <- rs_GRE[o==FALSE]
+saveRDS(o, "rds_saves/peaks/subsets/GRE/overlaps_rsGRE_not_spermGRE.rds")
+length(o)
+```
+
+Out of `r length(sperm_GRE)` accessible regions in rs containing GRE, there are `r length(o)` regions accessible in sperm containing GRE, that are not accessible in sperm.
+
+
+
+#### UDS
+
+__Regions in sperm accessible in sperm containing GRE, but not uds__
+
+```{r, results='hide'}
+o <- overlapsAny(sperm_GRE, uds_GRE)
+o <- sperm_GRE[o==FALSE]
+saveRDS(o, "rds_saves/peaks/subsets/GRE/overlaps_spermGRE_not_udsGRE.rds")
+length(o)
+```
+
+Out of `r length(sperm_GRE)` accessible regions in sperm containing GRE, there are `r length(o)` regions accessible in sperm containing GRE, that are not accessible in uds.
+
+__Regions in sperm not accessible in sperm containing GRE, but in uds__?????
+
+```{r, results='hide'}
+o <- sperm_GRE[overlapsAny(sperm_GRE,uds_GRE)]
+saveRDS(o, "rds_saves/peaks/subsets/GRE/overlaps_not_spermGRE_but_udsGRE.rds")
+length(o)
+```
+
+Out of `r length(sperm_GRE)` accessible regions in sperm containing GRE, there are `r length(o)` regions not accessible in sperm containing GRE, that are accessible in the uds.
+
+
+__Regions in uds accessible in uds containing GRE, but not sperm__
+
+```{r}
+o <- overlapsAny(uds_GRE, sperm_GRE)
+o <- uds_GRE[o==FALSE]
+saveRDS(o, "rds_saves/peaks/subsets/GRE/overlaps_udsGRE_not_spermGRE.rds")
+length(o)
+```
+
+Out of `r length(uds_GRE)` accessible regions in uds containing GRE, there are `r length(o)` regions accessible in sperm containing GRE, that are not accessible in sperm.
+
+
+##### UDS with oocyte
+
+__Regions in uds accessible in uds containing GRE, but not MIIoocyte__
+
+```{r, results='hide'}
+o <- overlapsAny(uds_GRE, MIIoocyte_GRE)
+o <- uds_GRE[o==FALSE]
+saveRDS(o, "rds_saves/peaks/subsets/GRE/overlaps_udsGRE_not_MIIoocyteGRE.rds")
+length(o)
+```
+
+Out of `r length(uds_GRE)` accessible regions in uds containing GRE, there are `r length(o)` regions accessible in uds containing GRE, that are not accessible in MIIoocytes.
+
+
+__Regions  accessible in MIIoocytes containing GRE, but not uds__
+
+```{r}
+o <- overlapsAny(MIIoocyte_GRE, uds_GRE)
+o <- MIIoocyte_GRE[o==FALSE]
+saveRDS(o, "rds_saves/peaks/subsets/GRE/overlaps_MIIoocyteGRE_not_udsGRE.rds")
+length(o)
+```
+
+Out of `r length(MIIoocyte_GRE)` accessible regions in MIIoocytes containing GRE, there are `r length(o)` regions accessible in MIIoocytes containing GRE, that are not accessible in uds.
+
+
+
+#### Immature male germ cells
+
+__Regions in sperm not accessible in all immature male germ cells but in sperm__
+
+```{r, results='hide'}
+o <- overlapsAny(sperm, c(rs, ps, ds, uds))
+o <- sperm[o==FALSE]
+saveRDS(o, "rds_saves/peaks/subsets/consensus/overlaps_sperm_not_immatureGermCells.rds")
+length(o)
+```
+
+Out of `r length(sperm)` accessible regions in sperm, there are `r length(o)` regions not accessible in sperm, that are accessible in the immature male germ cells.
+
+__Regions in sperm not accessible in all immature male germ cells but in sperm with GRE__
+
+```{r, results='hide'}
+o <- overlapsAny(sperm_GRE, c(rs_GRE, ps_GRE, ds_GRE, uds_GRE))
+o <- sperm_GRE[o==FALSE]
+saveRDS(o, "rds_saves/peaks/subsets/GRE/overlaps_spermGRE_not_immatureGermCellsGRE.rds")
+length(o)
+```
+
+Out of `r length(sperm)` accessible regions in sperm, there are `r length(o)` regions not accessible in sperm, that are not accessible in the immature male germ cells.
+
+
+
+
+```{r}
+sessionInfo()
+```
+
+[link1]: https://github.com/kretschmermiriam/materials2022/blob/main/Project%20-%20Accessibility%20across%20male%20and%20female%20germline/Main---Accessibility-across-male-and-female-germ-cells.html
+
