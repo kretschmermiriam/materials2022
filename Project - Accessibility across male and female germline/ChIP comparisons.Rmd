@@ -1,0 +1,477 @@
+---
+title: "ChIP data"
+author: "Miriam Kretschmer"
+date: "8/04/2022"
+output:
+  bookdown::html_document2:
+    code_folding: hide
+bibliography: citations.bib
+link-citations: yes
+
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE)
+```
+
+# Introduction
+
+GRE containing open chromatin sites are gained from round spermatids to mature sperm. 
+Here a possible gain of accessibility accompanied by a gain in RNApol2 in these regions is investigated. This could mean that there  is an increase in sites that are primed for embryonic transcription as there is no active transcription in mature sperm.
+Further, it is investigated whether the GRE sites coincide with histone modifications for gene activation including H3K4me3, H3K4me1, H3K27ac, and H3K9ac. Further, the presence of  markers for enhancers is looked into, inlcuding H3.3 and H2A.Z. It is also checked whether there are any histone PTMS for gene repression including H3K27me3 and H3K9me3.
+
+
+```{r, results='hide'}
+#setwd("/mnt/bohacek/kathi/miriam/accessibilty_sperm_embryo")
+
+suppressPackageStartupMessages(library(AnnotationHub))
+suppressPackageStartupMessages(library(ensembldb))
+suppressPackageStartupMessages(library(GenomicRanges))
+suppressPackageStartupMessages(library(epiwraps))
+```
+```{r tracks}
+tracks <- c(
+  sperm1="/mnt/bohacek/kathi/fromLiterature/ATAC_PE/tracks/ATAC_PRJNA480448_Sperm_GSM3262855.bw",
+  sperm2="/mnt/bohacek/kathi/fromLiterature/ATAC_PE/tracks/ATAC_PRJNA480448_Sperm_GSM3262856.bw",
+  sperm3="/mnt/bohacek/kathi/fromLiterature/ATAC_PE/tracks/ATAC_PRJNA315208_Sperm_GSM2088378.bw",
+  rs1="/mnt/bohacek/kathi/fromLiterature/ATAC_SE/tracks/ATACse_PRJNA399533_RoundSpermatides_GSM2751133.bw",
+  rs2="/mnt/bohacek/kathi/fromLiterature/ATAC_SE/tracks/ATACse_PRJNA399533_RoundSpermatides_GSM2751134.bw",
+  ps1="/mnt/bohacek/kathi/fromLiterature/ATAC_SE/tracks/ATACse_PRJNA399533_PachytenSpermatocytes_GSM2751129.bw",
+  ps2="/mnt/bohacek/kathi/fromLiterature/ATAC_SE/tracks/ATACse_PRJNA399533_PachytenSpermatocytes_GSM2751130.bw",
+  ds1="/mnt/bohacek/kathi/fromLiterature/ATAC_SE/tracks/ATACse_PRJNA399533_cKitposSpermatogonia_GSM2751125.bw",
+  ds2="/mnt/bohacek/kathi/fromLiterature/ATAC_SE/tracks/ATACse_PRJNA399533_cKitposSpermatogonia_GSM2751126.bw",
+  uds1="/mnt/bohacek/kathi/fromLiterature/ATAC_SE/tracks/ATACse_PRJNA399533_Thy1posSpermatogonia_GSM2751121.bw",
+  uds2="/mnt/bohacek/kathi/fromLiterature/ATAC_SE/tracks/ATACse_PRJNA399533_Thy1posSpermatogonia_GSM2751122.bw",
+  mIIoocyte1="/mnt/bohacek/kathi/fromLiterature/ATAC_PE/tracks/ATAC_PRJNA480448_MIIoocyte_GSM3262863.bw",
+  sperm1_RNAPIIS5p="/mnt/bohacek/kathi/fromLiterature/spermChIPs/tracks/ChIP_PRJNA480447_Sperm_GSM3262865.bw",
+  sperm2_RNAPIIS5p="/mnt/bohacek/kathi/fromLiterature/spermChIPs/tracks/ChIP_PRJNA480447_Sperm_GSM3262866.bw",
+  sperm1_RNAPIIS2p="/mnt/bohacek/kathi/fromLiterature/spermChIPs/tracks/ChIP_PRJNA480447_Sperm_GSM3262867.bw",
+  sperm2_RNAPIIS2p="/mnt/bohacek/kathi/fromLiterature/spermChIPs/tracks/ChIP_PRJNA480447_Sperm_GSM3262868.bw",
+  rs_RNAPolII="/mnt/bohacek/kathi/fromLiterature/ChIP_SE/tracks/SRR792837.bw"
+)
+```
+
+
+# Gain of RNAPolII signal in GRE sites
+
+## Sperm peaks with GRE
+
+__Sperm__
+
+Since no ChIP peaks are available, background ormalization is used.
+
+```{r sperm, results='hide', fig.height=5, fig.width=15, fig.cap="Accessibility of male and female germ cells at sperm peak regions"}
+peaks <- readRDS("rds_saves/peaks/GRE_peaks/peaks_with_GRE_sperm.rds")
+m <- signal2Matrix(tracks, peaks, w=20, BPPARAM = 4)
+norm_factor <- bwNormFactors(x = tracks)
+m <- rescaleSignalMatrices(m,scaleFactors = norm_factor)
+plotEnrichedHeatmaps(lapply(m,log1p), row_title="Peaks from sperm with GRE", trim = 0.99, raster_resize_mat = TRUE)
+```
+
+```{r sperm-fused, results='hide', fig.height=5, fig.width=15, fig.cap="Accessibility of male and female germ cells at sperm peak regions"}
+fused_sperm_mat <- mergeSignalMatrices(m[1:3])
+fused_rs_mat <- mergeSignalMatrices(m[4:5])
+fused_ps_mat <- mergeSignalMatrices(m[6:7])
+fused_ds_mat <- mergeSignalMatrices(m[8:9])
+fused_uds_mat <- mergeSignalMatrices(m[10:11])
+fused_spermRNAPIIS5p_mat <- mergeSignalMatrices(m[13:14])
+fused_spermRNAPIIS2p_mat <- mergeSignalMatrices(m[15:16])
+
+fused_m <- c(list(fused_sperm=fused_sperm_mat), list(fused_rs=fused_rs_mat), list(fused_ps=fused_ps_mat), list(fused_ds=fused_ds_mat), list(fused_uds=fused_uds_mat), list(fused_spermRNAPIIS5p=fused_spermRNAPIIS5p_mat), list(fused_spermRNAPIIS2p=fused_spermRNAPIIS2p_mat), m[-1:-16])
+plotEnrichedHeatmaps(lapply(fused_m,log1p), row_title="Peaks from sperm with GRE", trim = 0.99, raster_resize_mat = TRUE)
+```
+
+```{r sperm-RNAPolII-fused, results='hide', fig.cap="Accessibility of male and female germ cells at sperm peak regions"}
+fused_m <- c(list(fused_spermRNAPIIS5p=fused_spermRNAPIIS5p_mat), list(fused_spermRNAPIIS2p=fused_spermRNAPIIS2p_mat), m[-1:-16])
+plotEnrichedHeatmaps(lapply(fused_m,log1p), row_title="Peaks from sperm with GRE", trim = 0.99, raster_resize_mat = TRUE)
+```
+
+In open chromatin sites of sperm containing the GRE motif, ChIP gives a signal for sperm RNAPolIIS5p and sperm RNAPolIIS2p in all sperm peak regions, but only a portion of ChIP signals of RS RNAPolII seems to be appearing in sperm peak regions.
+
+
+## RS peaks  with GRE
+
+__Round spermatid peaks__
+
+```{r rs, results='hide', fig.height=5, fig.width=15, fig.cap="Accessibility of male and female germ cells at round spermatid peak regions"}
+peaks <- readRDS("rds_saves/peaks/GRE_peaks/peaks_with_GRE_rs.rds")
+m <- signal2Matrix(tracks, peaks, w=20, BPPARAM = 4)
+norm_factor <- bwNormFactors(x = tracks)
+m <- rescaleSignalMatrices(m,scaleFactors = norm_factor)
+plotEnrichedHeatmaps(lapply(m,log1p), row_title="Peaks from round spermatids \n with GRE", trim = 0.99, raster_resize_mat = TRUE)
+```
+
+```{r rs-fused, results='hide', fig.height=5, fig.width=15, fig.cap="Accessibility of male and female germ cells at round spermatid peak regions"}
+fused_sperm_mat <- mergeSignalMatrices(m[1:3])
+fused_rs_mat <- mergeSignalMatrices(m[4:5])
+fused_ps_mat <- mergeSignalMatrices(m[6:7])
+fused_ds_mat <- mergeSignalMatrices(m[8:9])
+fused_uds_mat <- mergeSignalMatrices(m[10:11])
+fused_spermRNAPIIS5p_mat <- mergeSignalMatrices(m[13:14])
+fused_spermRNAPIIS2p_mat <- mergeSignalMatrices(m[15:16])
+
+fused_m <- c(list(fused_sperm=fused_sperm_mat), list(fused_rs=fused_rs_mat), list(fused_ps=fused_ps_mat), list(fused_ds=fused_ds_mat), list(fused_uds=fused_uds_mat), list(fused_spermRNAPIIS5p=fused_spermRNAPIIS5p_mat), list(fused_spermRNAPIIS2p=fused_spermRNAPIIS2p_mat), m[-1:-16])
+plotEnrichedHeatmaps(lapply(fused_m,log1p), row_title="Peaks from round spermatids \n with GRE", trim = 0.99, raster_resize_mat = TRUE)
+```
+
+```{r rs-RNAPolII-fused, results='hide', fig.cap="Accessibility of male and female germ cells at round spermatid peak regions"}
+fused_m <- c(list(fused_spermRNAPIIS5p=fused_spermRNAPIIS5p_mat), list(fused_spermRNAPIIS2p=fused_spermRNAPIIS2p_mat), m[-1:-16])
+plotEnrichedHeatmaps(lapply(fused_m,log1p), row_title="Peaks from round spermatids \n with GRE ", trim = 0.99, raster_resize_mat = TRUE)
+```
+
+In open chromatin sites of RS containing the GRE motif, ChIP gives a signal for sperm RNAPolIIS5p and sperm RNAPolIIS2p for a portion of the RS peak regions, and ChIP signal of RS RNAPolII seems to be appearing in all RS peak regions.
+
+
+## Sperm peak subsets
+
+__Sperm not RS__
+
+```{r sperm-not-rs, results='hide', fig.height=5, fig.width=15, fig.cap="Accessibility of male and female germ cells at peak regions accessible in sperm and not round spermatids"}
+peaks <- readRDS("rds_saves/peaks/subsets/GRE/overlaps_spermGRE_not_rsGRE.rds")
+m <- signal2Matrix(tracks, peaks, w=20, BPPARAM = 4)
+norm_factor <- bwNormFactors(x = tracks)
+m <- rescaleSignalMatrices(m,scaleFactors = norm_factor)
+plotEnrichedHeatmaps(lapply(m,log1p), row_title="Peaks with GRE from sperm not \n round spermatids", trim = 0.99, raster_resize_mat = TRUE)
+```
+
+```{r sperm-not-rs-fused, results='hide', fig.height=5, fig.width=15, fig.cap="Accessibility of male and female germ cells at peak regions accessible in sperm and not round spermatids"}
+fused_sperm_mat <- mergeSignalMatrices(m[1:3])
+fused_rs_mat <- mergeSignalMatrices(m[4:5])
+fused_ps_mat <- mergeSignalMatrices(m[6:7])
+fused_ds_mat <- mergeSignalMatrices(m[8:9])
+fused_uds_mat <- mergeSignalMatrices(m[10:11])
+fused_spermRNAPIIS5p_mat <- mergeSignalMatrices(m[13:14])
+fused_spermRNAPIIS2p_mat <- mergeSignalMatrices(m[15:16])
+
+fused_m <- c(list(fused_sperm=fused_sperm_mat), list(fused_rs=fused_rs_mat), list(fused_ps=fused_ps_mat), list(fused_ds=fused_ds_mat), list(fused_uds=fused_uds_mat), list(fused_spermRNAPIIS5p=fused_spermRNAPIIS5p_mat), list(fused_spermRNAPIIS2p=fused_spermRNAPIIS2p_mat), m[-1:-16])
+plotEnrichedHeatmaps(lapply(fused_m,log1p), row_title="Peaks with GRE from sperm \n not round spermatids", trim = 0.99, raster_resize_mat = TRUE)
+```
+
+```{r sperm-not-rs-RNAPolII-fused, results='hide', fig.cap="Accessibility of male and female germ cells at peak regions accessible in sperm and not round spermatids"}
+fused_m <- c(list(fused_spermRNAPIIS5p=fused_spermRNAPIIS5p_mat), list(fused_spermRNAPIIS2p=fused_spermRNAPIIS2p_mat), m[-1:-16])
+plotEnrichedHeatmaps(lapply(fused_m,log1p), row_title="Peaks with GRE from sperm \n not round spermatids", trim = 0.99, raster_resize_mat = TRUE)
+```
+
+In open chromatin sites of sperm containing the GRE motif that are not accessible in RS, ChIP gives a signal for sperm RNAPolIIS5p and sperm RNAPolIIS2p in all sperm peak regions, and no ChIP signal of RS RNAPolII in sperm peak regions not accessible in RS.
+
+
+__RS not sperm__
+
+```{r rs-not-sperm, results='hide', fig.height=5, fig.width=15, fig.cap="Accessibility of male and female germ cells at peak regions accessible in round spermatids and not sperm"}
+peaks <- readRDS("rds_saves/peaks/subsets/GRE/overlaps_rsGRE_not_spermGRE.rds")
+m <- signal2Matrix(tracks, peaks, w=20, BPPARAM = 4)
+norm_factor <- bwNormFactors(x = tracks)
+m <- rescaleSignalMatrices(m,scaleFactors = norm_factor)
+plotEnrichedHeatmaps(lapply(m,log1p), row_title="Peaks with GRE from \n round spermatids not sperm", trim = 0.99, raster_resize_mat = TRUE)
+```
+
+```{r rs-not-sperm-fused, results='hide', fig.height=5, fig.width=15, fig.cap="Accessibility of male and female germ cells at peak regions accessible in round spermatids and not sperm"}
+fused_sperm_mat <- mergeSignalMatrices(m[1:3])
+fused_rs_mat <- mergeSignalMatrices(m[4:5])
+fused_ps_mat <- mergeSignalMatrices(m[6:7])
+fused_ds_mat <- mergeSignalMatrices(m[8:9])
+fused_uds_mat <- mergeSignalMatrices(m[10:11])
+fused_spermRNAPIIS5p_mat <- mergeSignalMatrices(m[13:14])
+fused_spermRNAPIIS2p_mat <- mergeSignalMatrices(m[15:16])
+
+fused_m <- c(list(fused_sperm=fused_sperm_mat), list(fused_rs=fused_rs_mat), list(fused_ps=fused_ps_mat), list(fused_ds=fused_ds_mat), list(fused_uds=fused_uds_mat), list(fused_spermRNAPIIS5p=fused_spermRNAPIIS5p_mat), list(fused_spermRNAPIIS2p=fused_spermRNAPIIS2p_mat), m[-1:-16])
+plotEnrichedHeatmaps(lapply(fused_m,log1p), row_title="Peaks with GRE from \n round spermatids not sperm", trim = 0.99, raster_resize_mat = TRUE)
+```
+
+```{r rs-not-sperm-RNAPolII-fused, results='hide', fig.cap="Accessibility of male and female germ cells at peak regions accessible in round spermatids and not sperm"}
+fused_m <- c(list(fused_spermRNAPIIS5p=fused_spermRNAPIIS5p_mat), list(fused_spermRNAPIIS2p=fused_spermRNAPIIS2p_mat), m[-1:-16])
+plotEnrichedHeatmaps(lapply(fused_m,log1p), row_title="Peaks with GRE from \n round spermatids not sperm", trim = 0.99, raster_resize_mat = TRUE)
+```
+
+This is similar to the figure using peaks from round spermatids (Figure \@ref(fig:rs-RNAPolII-fused)).
+
+
+__Sperm and RS__
+
+```{r sperm-and-rs, results='hide', fig.height=5, fig.width=15, fig.cap="Accessibility of male and female germ cells at peak regions accessible in sperm and round spermatids"}
+peaks <- readRDS("rds_saves/peaks/subsets/GRE/intersects/intersects_sperm_GRE_rs_GRE.rds")
+m <- signal2Matrix(tracks, peaks, w=20, BPPARAM = 4)
+norm_factor <- bwNormFactors(x = tracks)
+m <- rescaleSignalMatrices(m,scaleFactors = norm_factor)
+plotEnrichedHeatmaps(lapply(m,log1p), row_title="Peaks with GRE from sperm \n and round spermatids", trim = 0.99, raster_resize_mat = TRUE)
+```
+
+```{r sperm-and-rs-fused, results='hide', fig.height=5, fig.width=15, fig.cap="Accessibility of male and female germ cells at peak regions accessible in sperm and round spermatids"}
+fused_sperm_mat <- mergeSignalMatrices(m[1:3])
+fused_rs_mat <- mergeSignalMatrices(m[4:5])
+fused_ps_mat <- mergeSignalMatrices(m[6:7])
+fused_ds_mat <- mergeSignalMatrices(m[8:9])
+fused_uds_mat <- mergeSignalMatrices(m[10:11])
+fused_spermRNAPIIS5p_mat <- mergeSignalMatrices(m[13:14])
+fused_spermRNAPIIS2p_mat <- mergeSignalMatrices(m[15:16])
+
+fused_m <- c(list(fused_sperm=fused_sperm_mat), list(fused_rs=fused_rs_mat), list(fused_ps=fused_ps_mat), list(fused_ds=fused_ds_mat), list(fused_uds=fused_uds_mat), list(fused_spermRNAPIIS5p=fused_spermRNAPIIS5p_mat), list(fused_spermRNAPIIS2p=fused_spermRNAPIIS2p_mat), m[-1:-16])
+plotEnrichedHeatmaps(lapply(fused_m,log1p), row_title="Peaks with GRE from sperm \n and round spermatids", trim = 0.99, raster_resize_mat = TRUE)
+```
+
+```{r sperm-and-rs-RNAPolII-fused, results='hide', fig.cap="Accessibility of male and female germ cells at peak regions accessible in sperm and round spermatids"}
+fused_m <- c(list(fused_spermRNAPIIS5p=fused_spermRNAPIIS5p_mat), list(fused_spermRNAPIIS2p=fused_spermRNAPIIS2p_mat), m[-1:-16])
+plotEnrichedHeatmaps(lapply(fused_m,log1p), row_title="Peaks with GRE from sperm \n and round spermatids", trim = 0.99, raster_resize_mat = TRUE)
+```
+
+
+# Gain of accessibility in regions of enhancers as represented by H3.3 and H2a.Z
+
+## Sperm peaks with GRE
+
+```{r}
+tracks <- c(
+  rs_RNAPolII="/mnt/bohacek/kathi/fromLiterature/ChIP_SE/tracks/SRR792837.bw",
+  sperm1="/mnt/bohacek/kathi/fromLiterature/ATAC_PE/tracks/ATAC_PRJNA480448_Sperm_GSM3262855.bw",
+  sperm2="/mnt/bohacek/kathi/fromLiterature/ATAC_PE/tracks/ATAC_PRJNA480448_Sperm_GSM3262856.bw",
+  sperm3="/mnt/bohacek/kathi/fromLiterature/ATAC_PE/tracks/ATAC_PRJNA315208_Sperm_GSM2088378.bw",
+  sperm1_RNAPIIS5p="/mnt/bohacek/kathi/fromLiterature/spermChIPs/tracks/ChIP_PRJNA480447_Sperm_GSM3262865.bw",
+  sperm2_RNAPIIS5p="/mnt/bohacek/kathi/fromLiterature/spermChIPs/tracks/ChIP_PRJNA480447_Sperm_GSM3262866.bw",
+  sperm1_RNAPIIS2p="/mnt/bohacek/kathi/fromLiterature/spermChIPs/tracks/ChIP_PRJNA480447_Sperm_GSM3262867.bw",
+  sperm2_RNAPIIS2p="/mnt/bohacek/kathi/fromLiterature/spermChIPs/tracks/ChIP_PRJNA480447_Sperm_GSM3262868.bw",
+  sperm1_H3.3="/mnt/bohacek/kathi/fromLiterature/spermChIPs/tracks/ChIP_PRJNA480447_Sperm_GSM3262880.bw",  
+  sperm2_H3.3="/mnt/bohacek/kathi/fromLiterature/spermChIPs/tracks/ChIP_PRJNA480447_Sperm_GSM3262881.bw",
+  sperm1_H2A.Z="/mnt/bohacek/kathi/fromLiterature/spermChIPs/tracks/ChIP_PRJNA480447_Sperm_GSM3262882.bw",
+  sperm2_H2A.Z="/mnt/bohacek/kathi/fromLiterature/spermChIPs/tracks/ChIP_PRJNA480447_Sperm_GSM3262880.bw"
+)
+```
+
+```{r enhancers, results='hide', fig.height=5, fig.width=15, fig.cap="Accessibility and ChIP signal of male germ cells at sperm peak regions"}
+peaks <- readRDS("rds_saves/peaks/GRE_peaks/peaks_with_GRE_sperm.rds")
+m <- signal2Matrix(tracks, peaks, w=20, BPPARAM = 4, extend = 500)
+norm_factor <- bwNormFactors(x = tracks)
+m <- rescaleSignalMatrices(m,scaleFactors = norm_factor)
+plotEnrichedHeatmaps(lapply(m,log1p), row_title="Peaks from sperm with GRE", trim = 0.99, raster_resize_mat = TRUE)
+```
+
+```{r enhancers-select, results='hide', fig.height=5, fig.width=15, fig.cap="Accessibility and ChIP signal of male germ cells at sperm peak regions"}
+plotEnrichedHeatmaps(lapply(m[4:12],log1p), row_title="Peaks from sperm with GRE", trim = 0.99, raster_resize_mat = TRUE)
+```
+
+```{r enhancers-fused, results='hide', fig.width= 12, fig.cap="Accessibility and ChIP signal of male germ cells at sperm peak regions"}
+fused_sperm_mat <- mergeSignalMatrices(m[2:4])
+fused_spermRNAPIIS5p_mat <- mergeSignalMatrices(m[5:6])
+fused_spermRNAPIIS2p_mat <- mergeSignalMatrices(m[7:8])
+fused_spermH3.3_mat <- mergeSignalMatrices(m[9:10])
+fused_spermH2A.Z_mat <- mergeSignalMatrices(m[11:12])
+
+fused_m <- c(list(fused_sperm=fused_sperm_mat), list(fused_spermRNAPIIS5p=fused_spermRNAPIIS5p_mat), list(fused_spermRNAPIIS2p=fused_spermRNAPIIS2p_mat), list(fused_spermH3.3=fused_spermH3.3_mat), list(fused_spermH2A.Z=fused_spermH2A.Z_mat), m[-2:-12])
+
+plotEnrichedHeatmaps(lapply(fused_m,log1p), row_title="Peaks from sperm with GRE", raster_resize_mat = TRUE)
+```
+
+
+```{r enhancers-fused-select, results='hide', fig.cap="Accessibility and ChIP signal of male germ cells at sperm peak regions"}
+fused_m <- c(list(fused_spermH3.3=fused_spermH3.3_mat), list(fused_spermH2A.Z=fused_spermH2A.Z_mat), m[-1:-12])
+plotEnrichedHeatmaps(lapply(fused_m,log1p), row_title="Peaks from sperm with GRE", trim = 0.99, raster_resize_mat = TRUE)
+```
+
+In sperm peak regions containing the GRE motif, RNAPolIIS5p and RNAPolIIS2p are located at  accessible chromatin containing GRE. H3.3 on the  other hand seems not to be located at open chromatin sites of sperm. H2A.Z, another marker for enhancers is located at a portion of open chromatin of sperm, in a similar fashion to RNAPolII from round spermatids.
+
+# H3K4me3, H3K4me1, H3K27ac, H3K9ac
+
+## Sperm peaks with GRE
+
+```{r activePTM, results='hide', fig.height=5, fig.width=15, fig.cap="Accessibility and ChIP signal of male germ cells at sperm peak regions"}
+tracks <- c(
+  sperm1="/mnt/bohacek/kathi/fromLiterature/ATAC_PE/tracks/ATAC_PRJNA480448_Sperm_GSM3262855.bw",
+  sperm2="/mnt/bohacek/kathi/fromLiterature/ATAC_PE/tracks/ATAC_PRJNA480448_Sperm_GSM3262856.bw",
+  sperm3="/mnt/bohacek/kathi/fromLiterature/ATAC_PE/tracks/ATAC_PRJNA315208_Sperm_GSM2088378.bw",
+  sperm1_H3K4me3="/mnt/bohacek/kathi/fromLiterature/ChIP_PE/tracks/SRR3309386.bw",
+  sperm2_H3K4me3="/mnt/bohacek/kathi/fromLiterature/ChIP_PE/tracks/SRR3309387.bw",
+  sperm3_H3K4me3="/mnt/bohacek/kathi/fromLiterature/ChIP_SE/tracks/SRR3703039.bw",
+  sperm4_H3K4me3="/mnt/bohacek/kathi/fromLiterature/ChIP_PE/tracks/SRR5049005.bw",
+  sperm1_H3K4me1="/mnt/bohacek/kathi/fromLiterature/ChIP_PE/tracks/SRR3225848.bw",
+  sperm2_H3K4me1="/mnt/bohacek/kathi/fromLiterature/ChIP_PE/tracks/SRR5049004.bw",
+  sperm1_H3K27ac="/mnt/bohacek/kathi/fromLiterature/ChIP_PE/tracks/SRR3225845.bw",
+  sperm2_H3K27ac="/mnt/bohacek/kathi/fromLiterature/ChIP_PE/tracks/SRR5049001.bw",
+  sperm1_H3K9ac="/mnt/bohacek/kathi/fromLiterature/ChIP_PE/tracks/SRR3225847.bw",
+  sperm2_H3K9ac="/mnt/bohacek/kathi/fromLiterature/ChIP_PE/tracks/SRR5049003.bw"
+)
+
+m <- signal2Matrix(tracks, peaks, w=20, BPPARAM = 4, extend = 500)
+norm_factor <- bwNormFactors(x = tracks)
+m <- rescaleSignalMatrices(m,scaleFactors = norm_factor)
+plotEnrichedHeatmaps(lapply(m[4:13],log1p), row_title="Peaks from sperm with GRE", trim = 0.99, raster_resize_mat = TRUE)
+```
+
+```{r activePTM-fused, results='hide', fig.cap="Accessibility and ChIP signal of male germ cells at sperm peak regions"}
+fused_sperm_mat <- mergeSignalMatrices(m[1:3])
+fused_spermH3K4me3_mat <- mergeSignalMatrices(m[4:7])
+fused_spermH3K4me1_mat <- mergeSignalMatrices(m[8:9])
+fused_spermH3K27ac_mat <- mergeSignalMatrices(m[10:11])
+fused_spermH3K9ac_mat <- mergeSignalMatrices(m[12:13])
+
+fused_m <- c(list(fused_spermH3K4me3=fused_spermH3K4me3_mat), list(fused_spermH3K4me1=fused_spermH3K4me1_mat), list(fused_spermH3K27ac=fused_spermH3K27ac_mat), list(fused_spermH3K9ac=fused_spermH3K9ac_mat), m[-1:-13])
+
+plotEnrichedHeatmaps(lapply(fused_m,log1p), row_title="Peaks from sperm with GRE", raster_resize_mat = TRUE, trim=0.99)
+```
+
+There seems to be a slight signal for H3K4me3 and H3K9ac in similar regions, with the signal being positioned about 200 bp left and right of the peak centre. There is a weaker signal, but distributed over more regions, for H3K4me1, the signal also being positioned to the sides of the peak centre. H3K27ac displays the strongest signal, to the sides of the peak centre, across a big portion of the sperm peak regions containing GRE.
+
+Is this also the case for the subsets of sperm peaks?
+
+## Sperm peak subsets
+
+### Sperm and RS
+
+```{r activePTM-sperm-not-rs, results='hide', fig.cap="Accessibility and ChIP signal of male germ cells at sperm peak regions"}
+peaks <- readRDS("rds_saves/peaks/subsets/GRE/overlaps_spermGRE_not_rsGRE.rds")
+m <- signal2Matrix(tracks, peaks, w=20, BPPARAM = 4, extend = 500)
+norm_factor <- bwNormFactors(x = tracks)
+m <- rescaleSignalMatrices(m,scaleFactors = norm_factor)
+fused_sperm_mat <- mergeSignalMatrices(m[1:3])
+fused_spermH3K4me3_mat <- mergeSignalMatrices(m[4:7])
+fused_spermH3K4me1_mat <- mergeSignalMatrices(m[8:9])
+fused_spermH3K27ac_mat <- mergeSignalMatrices(m[10:11])
+fused_spermH3K9ac_mat <- mergeSignalMatrices(m[12:13])
+
+fused_m <- c(list(fused_spermH3K4me3=fused_spermH3K4me3_mat), list(fused_spermH3K4me1=fused_spermH3K4me1_mat), list(fused_spermH3K27ac=fused_spermH3K27ac_mat), list(fused_spermH3K9ac=fused_spermH3K9ac_mat), m[-1:-13])
+
+plotEnrichedHeatmaps(lapply(fused_m,log1p), row_title="Peaks with GRE from sperm \n not round spermatids", raster_resize_mat = TRUE, trim=0.99)
+```
+
+```{r activePTM-rs-not-sperm, results='hide', fig.cap="Accessibility and ChIP signal of male germ cells at sperm peak regions"}
+peaks <- readRDS("rds_saves/peaks/subsets/GRE/overlaps_rsGRE_not_spermGRE.rds")
+m <- signal2Matrix(tracks, peaks, w=20, BPPARAM = 4, extend = 500)
+norm_factor <- bwNormFactors(x = tracks)
+m <- rescaleSignalMatrices(m,scaleFactors = norm_factor)
+fused_sperm_mat <- mergeSignalMatrices(m[1:3])
+fused_spermH3K4me3_mat <- mergeSignalMatrices(m[4:7])
+fused_spermH3K4me1_mat <- mergeSignalMatrices(m[8:9])
+fused_spermH3K27ac_mat <- mergeSignalMatrices(m[10:11])
+fused_spermH3K9ac_mat <- mergeSignalMatrices(m[12:13])
+
+fused_m <- c(list(fused_spermH3K4me3=fused_spermH3K4me3_mat), list(fused_spermH3K4me1=fused_spermH3K4me1_mat), list(fused_spermH3K27ac=fused_spermH3K27ac_mat), list(fused_spermH3K9ac=fused_spermH3K9ac_mat), m[-1:-13])
+
+plotEnrichedHeatmaps(lapply(fused_m,log1p), row_title="Peaks with GRE from \n round spermatids not sperm", raster_resize_mat = TRUE, trim=0.99)
+```
+
+```{r activePTM-sperm-and-rs, results='hide', fig.cap="Accessibility and ChIP signal of male germ cells at sperm peak regions"}
+peaks <- readRDS("rds_saves/peaks/subsets/GRE/intersects/intersects_sperm_GRE_rs_GRE.rds")
+m <- signal2Matrix(tracks, peaks, w=20, BPPARAM = 4, extend = 500)
+norm_factor <- bwNormFactors(x = tracks)
+m <- rescaleSignalMatrices(m,scaleFactors = norm_factor)
+fused_sperm_mat <- mergeSignalMatrices(m[1:3])
+fused_spermH3K4me3_mat <- mergeSignalMatrices(m[4:7])
+fused_spermH3K4me1_mat <- mergeSignalMatrices(m[8:9])
+fused_spermH3K27ac_mat <- mergeSignalMatrices(m[10:11])
+fused_spermH3K9ac_mat <- mergeSignalMatrices(m[12:13])
+
+fused_m <- c(list(fused_spermH3K4me3=fused_spermH3K4me3_mat), list(fused_spermH3K4me1=fused_spermH3K4me1_mat), list(fused_spermH3K27ac=fused_spermH3K27ac_mat), list(fused_spermH3K9ac=fused_spermH3K9ac_mat), m[-1:-13])
+
+plotEnrichedHeatmaps(lapply(fused_m,log1p), row_title="Peaks with GRE from \n sperm and round spermatids", raster_resize_mat = TRUE, trim=0.99)
+```
+
+
+### MIIoocytes and sperm
+
+```{r activePTM-sperm-not-MIoocyte, results='hide', fig.cap="Accessibility and ChIP signal of male germ cells at sperm peak regions"}
+peaks <- readRDS("rds_saves/peaks/subsets/GRE/overlaps_spermGRE_not_MIIoocyteGRE.rds")
+m <- signal2Matrix(tracks, peaks, w=20, BPPARAM = 4, extend = 500)
+norm_factor <- bwNormFactors(x = tracks)
+m <- rescaleSignalMatrices(m,scaleFactors = norm_factor)
+fused_sperm_mat <- mergeSignalMatrices(m[1:3])
+fused_spermH3K4me3_mat <- mergeSignalMatrices(m[4:7])
+fused_spermH3K4me1_mat <- mergeSignalMatrices(m[8:9])
+fused_spermH3K27ac_mat <- mergeSignalMatrices(m[10:11])
+fused_spermH3K9ac_mat <- mergeSignalMatrices(m[12:13])
+
+fused_m <- c(list(fused_spermH3K4me3=fused_spermH3K4me3_mat), list(fused_spermH3K4me1=fused_spermH3K4me1_mat), list(fused_spermH3K27ac=fused_spermH3K27ac_mat), list(fused_spermH3K9ac=fused_spermH3K9ac_mat), m[-1:-13])
+
+plotEnrichedHeatmaps(lapply(fused_m,log1p), row_title="Peaks with GRE from sperm \n not MIIoocytes", raster_resize_mat = TRUE, trim=0.99)
+```
+
+```{r activePTM-MIoocyte-not-sperm, results='hide', fig.cap="Accessibility and ChIP signal of male germ cells at sperm peak regions"}
+peaks <- readRDS("rds_saves/peaks/subsets/GRE/overlaps_MIIoocyteGRE_not_spermGRE.rds")
+m <- signal2Matrix(tracks, peaks, w=20, BPPARAM = 4, extend = 500)
+norm_factor <- bwNormFactors(x = tracks)
+m <- rescaleSignalMatrices(m,scaleFactors = norm_factor)
+fused_sperm_mat <- mergeSignalMatrices(m[1:3])
+fused_spermH3K4me3_mat <- mergeSignalMatrices(m[4:7])
+fused_spermH3K4me1_mat <- mergeSignalMatrices(m[8:9])
+fused_spermH3K27ac_mat <- mergeSignalMatrices(m[10:11])
+fused_spermH3K9ac_mat <- mergeSignalMatrices(m[12:13])
+
+fused_m <- c(list(fused_spermH3K4me3=fused_spermH3K4me3_mat), list(fused_spermH3K4me1=fused_spermH3K4me1_mat), list(fused_spermH3K27ac=fused_spermH3K27ac_mat), list(fused_spermH3K9ac=fused_spermH3K9ac_mat), m[-1:-13])
+
+plotEnrichedHeatmaps(lapply(fused_m,log1p), row_title="Peaks with GRE from \n MIIoocytes not sperm", raster_resize_mat = TRUE, trim=0.99)
+```
+
+### Sperm and immature germ cells
+
+```{r activePTM-sperm-not-immaturegermcells, fig.cap="Accessibility and ChIP signal of male germ cells at sperm peak regions"}
+peaks <- readRDS("rds_saves/peaks/subsets/GRE/overlaps_spermGRE_not_immatureGermCellsGRE.rds")
+m <- signal2Matrix(tracks, peaks, w=20, BPPARAM = 4, extend = 500)
+norm_factor <- bwNormFactors(x = tracks)
+m <- rescaleSignalMatrices(m,scaleFactors = norm_factor)
+fused_sperm_mat <- mergeSignalMatrices(m[1:3])
+fused_spermH3K4me3_mat <- mergeSignalMatrices(m[4:7])
+fused_spermH3K4me1_mat <- mergeSignalMatrices(m[8:9])
+fused_spermH3K27ac_mat <- mergeSignalMatrices(m[10:11])
+fused_spermH3K9ac_mat <- mergeSignalMatrices(m[12:13])
+
+fused_m <- c(list(fused_spermH3K4me3=fused_spermH3K4me3_mat), list(fused_spermH3K4me1=fused_spermH3K4me1_mat), list(fused_spermH3K27ac=fused_spermH3K27ac_mat), list(fused_spermH3K9ac=fused_spermH3K9ac_mat), m[-1:-13])
+
+#plotEnrichedHeatmaps(lapply(fused_m,log1p), row_title="Peaks with GRE from sperm \n not immature germ cells", raster_resize_mat = TRUE, trim=0.99)
+knitr::include_graphics("plots/sperm not immature male germ cells GRE peaks active ChIP.png")
+```
+
+
+
+What about repression markers?
+
+# H3K27me3, H3K9me3
+
+## Sperm peaks with GRE
+
+```{r H3K27me3, results='hide', fig.height=5, fig.width=15, fig.cap="Accessibility and ChIP signal of male germ cells at sperm peak regions"}
+peaks <- readRDS("rds_saves/peaks/GRE_peaks/peaks_with_GRE_sperm.rds")
+tracks <- c(
+  sperm1="/mnt/bohacek/kathi/fromLiterature/ATAC_PE/tracks/ATAC_PRJNA480448_Sperm_GSM3262855.bw",
+  sperm2="/mnt/bohacek/kathi/fromLiterature/ATAC_PE/tracks/ATAC_PRJNA480448_Sperm_GSM3262856.bw",
+  sperm3="/mnt/bohacek/kathi/fromLiterature/ATAC_PE/tracks/ATAC_PRJNA315208_Sperm_GSM2088378.bw",
+  sperm1_H3K27me3="/mnt/bohacek/kathi/fromLiterature/ChIP_PE/tracks/SRR3225844.bw",
+  sperm2_H3K27me3="/mnt/bohacek/kathi/fromLiterature/ChIP_PE/tracks/SRR5049000.bw",
+  sperm1_H3K9me3="/mnt/bohacek/kathi/fromLiterature/ChIP_PE/tracks/SRR3225847.bw",
+  sperm2_H3K9me3="/mnt/bohacek/kathi/fromLiterature/ChIP_PE/tracks/SRR5049002.bw"
+)
+
+m <- signal2Matrix(tracks, peaks, w=20, BPPARAM = 4, extend = 500)
+norm_factor <- bwNormFactors(x = tracks)
+m <- rescaleSignalMatrices(m,scaleFactors = norm_factor)
+plotEnrichedHeatmaps(lapply(m,log1p), row_title="Peaks from sperm with GRE", trim = 0.99, raster_resize_mat = TRUE)
+```
+
+```{r H3K27me3-2, results='hide', fig.cap="Accessibility and ChIP signal of male germ cells at sperm peak regions"}
+n <- m[4:7]
+plotEnrichedHeatmaps(lapply(n,log1p), row_title="Peaks from sperm with GRE", trim = 0.99, raster_resize_mat = TRUE)
+```
+
+```{r H3K4me3-fused, results='hide', fig.cap="Accessibility and ChIP signal of male germ cells at sperm peak regions"}
+fused_sperm_mat <- mergeSignalMatrices(m[1:3])
+fused_spermH3K27me3_mat <- mergeSignalMatrices(m[4:5])
+fused_spermH3K9me3_mat <- mergeSignalMatrices(m[6:7])
+
+fused_m <- c(list(fused_sperm=fused_sperm_mat), list(fused_spermH3K27me3=fused_spermH3K27me3_mat), list(fused_spermH3K9me3=fused_spermH3K9me3_mat), m[-1:-7])
+
+plotEnrichedHeatmaps(lapply(fused_m,log1p), row_title="Peaks from sperm with GRE", raster_resize_mat = TRUE, trim=0.99)
+```
+
+```{r H3K4me3-fused2, results='hide', fig.cap="Accessibility and ChIP signal of male germ cells at sperm peak regions"}
+fused_m <- c(list(fused_spermH3K27me3=fused_spermH3K27me3_mat), list(fused_spermH3K9me3=fused_spermH3K9me3_mat), m[-1:-7])
+
+plotEnrichedHeatmaps(lapply(fused_m,log1p), row_title="Peaks from sperm with GRE", raster_resize_mat = TRUE, trim=0.99)
+```
+
+There seems to  be no H3K27me3 nor H3K9me3 present at open chromatin regions in sperm that contain GRE, as expected.
+
+
+
+
+
+
+```{r}
+sessionInfo()
+```
+
